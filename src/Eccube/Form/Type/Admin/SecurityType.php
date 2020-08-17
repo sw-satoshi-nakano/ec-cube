@@ -1,44 +1,58 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormEvents;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class SecurityType extends AbstractType
 {
-    private $app;
-    private $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($app)
+    /**
+     * @var ValidatorInterface
+     */
+    protected $validator;
+
+    /**
+     * @var RequestStack
+     */
+    protected $requestStack;
+
+    /**
+     * SecurityType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     * @param ValidatorInterface $validator
+     */
+    public function __construct(EccubeConfig $eccubeConfig, ValidatorInterface $validator, RequestStack $requestStack)
     {
-        $this->app = $app;
-        $this->config = $app['config'];
+        $this->eccubeConfig = $eccubeConfig;
+        $this->validator = $validator;
+        $this->requestStack = $requestStack;
     }
 
     /**
@@ -46,43 +60,50 @@ class SecurityType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $app = $this->app;
+        $allowHosts = $this->eccubeConfig->get('eccube_admin_allow_hosts');
+        $allowHosts = implode("\n", $allowHosts);
         $builder
-            ->add('admin_route_dir', 'text', array(
-                'label' => 'ディレクトリ名',
-                'constraints' => array(
+            ->add('admin_route_dir', TextType::class, [
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array('max' => $this->config['stext_len'])),
-                    new Assert\Regex(array(
-                       'pattern' => "/^[0-9a-zA-Z]+$/",
-                   )),
-                ),
-            ))
-            ->add('admin_allow_host', 'textarea', array(
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_stext_len']]),
+                    new Assert\Regex([
+                        'pattern' => '/\A\w+\z/',
+                    ]),
+                ],
+                'data' => $this->eccubeConfig->get('eccube_admin_route'),
+            ])
+            ->add('admin_allow_hosts', TextareaType::class, [
                 'required' => false,
-                'label' => 'IP制限',
-                'constraints' => array(
-                    new Assert\Length(array('max' => $this->config['ltext_len'])),
-                ),
-            ))
-            ->add('force_ssl', 'checkbox', array(
-                'label' => 'SSLを強制',
+                'constraints' => [
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_ltext_len']]),
+                ],
+                'data' => $allowHosts,
+            ])
+            ->add('force_ssl', CheckboxType::class, [
+                'label' => 'admin.setting.system.security.force_ssl',
                 'required' => false,
-            ))
-            ->addEventListener(FormEvents::POST_SUBMIT, function ($event) use($app) {
+                'data' => $this->eccubeConfig->get('eccube_force_ssl'),
+            ])
+            ->addEventListener(FormEvents::POST_SUBMIT, function ($event) {
                 $form = $event->getForm();
                 $data = $form->getData();
 
-                $ips = preg_split("/\R/", $data['admin_allow_host'], null, PREG_SPLIT_NO_EMPTY);
+                $ips = preg_split("/\R/", $data['admin_allow_hosts'], null, PREG_SPLIT_NO_EMPTY);
 
-                foreach($ips as $ip) {
-                    $errors = $app['validator']->validateValue($ip, array(
+                foreach ($ips as $ip) {
+                    $errors = $this->validator->validate($ip, [
                             new Assert\Ip(),
-                        )
+                        ]
                     );
                     if ($errors->count() != 0) {
-                        $form['admin_allow_host']->addError(new FormError($ip . 'はIPv4アドレスではありません。'));
+                        $form['admin_allow_hosts']->addError(new FormError(trans('admin.setting.system.security.ip_limit_invalid_ipv4', ['%ip%' => $ip])));
                     }
+                }
+
+                $request = $this->requestStack->getCurrentRequest();
+                if ($data['force_ssl'] && !$request->isSecure()) {
+                    $form['force_ssl']->addError(new FormError(trans('admin.setting.system.security.ip_limit_invalid_https')));
                 }
             })
         ;
@@ -91,7 +112,7 @@ class SecurityType extends AbstractType
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_security';
     }

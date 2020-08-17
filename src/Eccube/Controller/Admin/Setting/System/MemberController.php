@@ -1,223 +1,292 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Controller\Admin\Setting\System;
 
-use Eccube\Application;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Eccube\Controller\AbstractController;
+use Eccube\Entity\Member;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Form\Type\Admin\MemberType;
+use Eccube\Repository\MemberRepository;
+use Symfony\Component\Routing\Annotation\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
 
 class MemberController extends AbstractController
 {
-    public function __construct()
-    {
+    /**
+     * @var TokenStorageInterface
+     */
+    protected $tokenStorage;
+
+    /**
+     * @var MemberRepository
+     */
+    protected $memberRepository;
+
+    /**
+     * @var EncoderFactoryInterface
+     */
+    protected $encoderFactory;
+
+    /**
+     * MemberController constructor.
+     *
+     * @param EncoderFactoryInterface $encoderFactory
+     * @param MemberRepository $memberRepository
+     * @param TokenStorageInterface $tokenStorage
+     */
+    public function __construct(
+        EncoderFactoryInterface $encoderFactory,
+        MemberRepository $memberRepository,
+        TokenStorageInterface $tokenStorage
+    ) {
+        $this->encoderFactory = $encoderFactory;
+        $this->memberRepository = $memberRepository;
+        $this->tokenStorage = $tokenStorage;
     }
 
-    public function index(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member", name="admin_setting_system_member")
+     * @Template("@admin/Setting/System/member.twig")
+     */
+    public function index(Request $request)
     {
-        $Members = $app['eccube.repository.member']->findBy(array(), array('rank' => 'DESC'));
+        $Members = $this->memberRepository->findBy([], ['sort_no' => 'DESC']);
 
-        $builder = $app['form.factory']->createBuilder();
+        $builder = $this->formFactory->createBuilder();
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
                 'Members' => $Members,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_INDEX_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
-        return $app->render('Setting/System/member.twig', array(
+        return [
             'form' => $form->createView(),
             'Members' => $Members,
-        ));
+        ];
     }
 
-    public function edit(Application $app, Request $request, $id = null)
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member/new", name="admin_setting_system_member_new")
+     * @Template("@admin/Setting/System/member_edit.twig")
+     */
+    public function create(Request $request)
     {
-        $previous_password = null;
-        if ($id) {
-            $Member = $app['eccube.repository.member']->find($id);
-            if (!$Member) {
-                throw new NotFoundHttpException();
-            }
-            $previous_password = $Member->getPassword();
-            $Member->setPassword($app['config']['default_password']);
-        } else {
-            $Member = new \Eccube\Entity\Member();
-        }
+        $LoginMember = clone $this->tokenStorage->getToken()->getUser();
+        $this->entityManager->detach($LoginMember);
 
-        $LoginMember = clone $app->user();
-        $app['orm.em']->detach($LoginMember);
+        $Member = new Member();
+        $builder = $this->formFactory
+            ->createBuilder(MemberType::class, $Member);
 
-        $builder = $app['form.factory']
-            ->createBuilder('admin_member', $Member);
-
-        $event = new EventArgs(
-            array(
-                'builder' => $builder,
-                'Member' => $Member,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_INITIALIZE, $event);
+        $event = new EventArgs([
+            'builder' => $builder,
+            'Member' => $Member,
+        ], $request);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_INITIALIZE, $event);
 
         $form = $builder->getForm();
+        $form->handleRequest($request);
 
-        if ('POST' === $request->getMethod()) {
-            $form->handleRequest($request);
-            if ($form->isValid()) {
-                if (!is_null($previous_password)
-                    && $Member->getpassword() === $app['config']['default_password']) {
-                    // 編集時にPWを変更していなければ
-                    // 変更前のパスワード(暗号化済み)をセット
-                    $Member->setPassword($previous_password);
-                } else {
-                    $salt = $Member->getSalt();
-                    if (!isset($salt)) {
-                        $salt = $app['eccube.repository.member']->createSalt(5);
-                        $Member->setSalt($salt);
-                    }
+        if ($form->isSubmitted() && $form->isValid()) {
+            $encoder = $this->encoderFactory->getEncoder($Member);
+            $salt = $encoder->createSalt();
+            $rawPassword = $Member->getPassword();
+            $encodedPassword = $encoder->encodePassword($rawPassword, $salt);
+            $Member
+                ->setSalt($salt)
+                ->setPassword($encodedPassword);
 
-                    // 入力されたPWを暗号化してセット
-                    $password = $app['eccube.repository.member']->encryptPassword($Member);
-                    $Member->setPassword($password);
-                }
-                $status = $app['eccube.repository.member']->save($Member);
+            $this->memberRepository->save($Member);
 
-                if ($status) {
-                    $event = new EventArgs(
-                        array(
-                            'form' => $form,
-                            'Member' => $Member,
-                        ),
-                        $request
-                    );
-                    $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_COMPLETE, $event);
-
-                    $app->addSuccess('admin.member.save.complete', 'admin');
-
-                    return $app->redirect($app->url('admin_setting_system_member'));
-                } else {
-                    $app->addError('admin.member.save.error', 'admin');
-                }
-            }
-        }
-
-        $app['security']->getToken()->setUser($LoginMember);
-
-        return $app->render('Setting/System/member_edit.twig', array(
-            'form' => $form->createView(),
-            'Member' => $Member,
-        ));
-
-    }
-
-    public function up(Application $app, Request $request, $id)
-    {
-        $this->isTokenValid($app);
-
-        $TargetMember = $app['eccube.repository.member']->find($id);
-
-        if (!$TargetMember) {
-            throw new NotFoundHttpException();
-        }
-
-        $status = false;
-        if ('PUT' === $request->getMethod()) {
-            $status = $app['eccube.repository.member']->up($TargetMember);
-        }
-
-        if ($status) {
-            $app->addSuccess('admin.member.up.complete', 'admin');
-        } else {
-            $app->addError('admin.member.up.error', 'admin');
-        }
-
-        return $app->redirect($app->url('admin_setting_system_member'));
-    }
-
-    public function down(Application $app, Request $request, $id)
-    {
-        $this->isTokenValid($app);
-
-        $TargetMember = $app['eccube.repository.member']->find($id);
-
-        if (!$TargetMember) {
-            throw new NotFoundHttpException();
-        }
-
-        $status = false;
-        if ('PUT' === $request->getMethod()) {
-            $status = $app['eccube.repository.member']->down($TargetMember);
-        }
-
-        if ($status) {
-            $app->addSuccess('admin.member.down.complete', 'admin');
-        } else {
-            $app->addError('admin.member.down.error', 'admin');
-        }
-
-        return $app->redirect($app->url('admin_setting_system_member'));
-    }
-
-    public function delete(Application $app, Request $request, $id)
-    {
-        $this->isTokenValid($app);
-
-        $TargetMember = $app['eccube.repository.member']->find($id);
-        if (!$TargetMember) {
-            $app->deleteMessage();
-            return $app->redirect($app->url('admin_setting_system_member'));
-        }
-
-        $event = new EventArgs(
-            array(
-                'TargetMember' => $TargetMember,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_DELETE_INITIALIZE, $event);
-
-        $status = $app['eccube.repository.member']->delete($TargetMember);
-
-        if ($status) {
-            $app->addSuccess('admin.member.delete.complete', 'admin');
             $event = new EventArgs(
-                array(),
+                [
+                    'form' => $form,
+                    'Member' => $Member,
+                ],
                 $request
             );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_DELETE_COMPLETE, $event);
-        } else {
-            $app->addError('admin.member.delete.error', 'admin');
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_COMPLETE, $event);
+
+            $this->addSuccess('admin.common.save_complete', 'admin');
+
+            return $this->redirectToRoute('admin_setting_system_member_edit', ['id' => $Member->getId()]);
         }
 
-        return $app->redirect($app->url('admin_setting_system_member'));
+        $this->tokenStorage->getToken()->setUser($LoginMember);
+
+        return [
+            'form' => $form->createView(),
+            'Member' => $Member,
+        ];
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member/{id}/edit", requirements={"id" = "\d+"}, name="admin_setting_system_member_edit")
+     * @Template("@admin/Setting/System/member_edit.twig")
+     */
+    public function edit(Request $request, Member $Member)
+    {
+        $LoginMember = clone $this->tokenStorage->getToken()->getUser();
+        $this->entityManager->detach($LoginMember);
+
+        $previousPassword = $Member->getPassword();
+        $Member->setPassword($this->eccubeConfig['eccube_default_password']);
+
+        $builder = $this->formFactory
+            ->createBuilder(MemberType::class, $Member);
+
+        $event = new EventArgs(
+            [
+                'builder' => $builder,
+                'Member' => $Member,
+            ],
+            $request
+        );
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_INITIALIZE, $event);
+
+        $form = $builder->getForm();
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            if ($Member->getpassword() === $this->eccubeConfig['eccube_default_password']) {
+                // 編集時にパスワードを変更していなければ
+                // 変更前のパスワード(暗号化済み)をセット
+                $Member->setPassword($previousPassword);
+            } else {
+                $salt = $Member->getSalt();
+                // 2系からのデータ移行でsaltがセットされていない場合はsaltを生成.
+                if (empty($salt)) {
+                    $salt = bin2hex(openssl_random_pseudo_bytes(5));
+                    $Member->setSalt($salt);
+                }
+
+                $rawPassword = $Member->getPassword();
+                $encoder = $this->encoderFactory->getEncoder($Member);
+                $encodedPassword = $encoder->encodePassword($rawPassword, $salt);
+                $Member->setPassword($encodedPassword);
+            }
+
+            $this->memberRepository->save($Member);
+
+            $event = new EventArgs(
+                [
+                    'form' => $form,
+                    'Member' => $Member,
+                ],
+                $request
+            );
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_EDIT_COMPLETE, $event);
+
+            $this->addSuccess('admin.common.save_complete', 'admin');
+
+            return $this->redirectToRoute('admin_setting_system_member_edit', ['id' => $Member->getId()]);
+        }
+
+        $this->tokenStorage->getToken()->setUser($LoginMember);
+
+        return [
+            'form' => $form->createView(),
+            'Member' => $Member,
+        ];
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member/{id}/up", requirements={"id" = "\d+"}, name="admin_setting_system_member_up", methods={"PUT"})
+     */
+    public function up(Request $request, Member $Member)
+    {
+        $this->isTokenValid();
+
+        try {
+            $this->memberRepository->up($Member);
+
+            $this->addSuccess('admin.common.move_complete', 'admin');
+        } catch (\Exception $e) {
+            log_error('メンバー表示順更新エラー', [$Member->getId(), $e]);
+
+            $this->addError('admin.common.move_error', 'admin');
+        }
+
+        return $this->redirectToRoute('admin_setting_system_member');
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member/{id}/down", requirements={"id" = "\d+"}, name="admin_setting_system_member_down", methods={"PUT"})
+     */
+    public function down(Request $request, Member $Member)
+    {
+        $this->isTokenValid();
+
+        try {
+            $this->memberRepository->down($Member);
+
+            $this->addSuccess('admin.common.move_complete', 'admin');
+        } catch (\Exception $e) {
+            log_error('メンバー表示順更新エラー', [$Member->getId(), $e]);
+
+            $this->addError('admin.common.move_error', 'admin');
+        }
+
+        return $this->redirectToRoute('admin_setting_system_member');
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/member/{id}/delete", requirements={"id" = "\d+"}, name="admin_setting_system_member_delete", methods={"DELETE"})
+     */
+    public function delete(Request $request, Member $Member)
+    {
+        $this->isTokenValid();
+
+        log_info('メンバー削除開始', [$Member->getId()]);
+
+        try {
+            $this->memberRepository->delete($Member);
+
+            $event = new EventArgs(
+                [
+                    'Member' => $Member,
+                ],
+                $request
+            );
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MEMBER_DELETE_COMPLETE, $event);
+
+            $this->addSuccess('admin.common.delete_complete', 'admin');
+
+            log_info('メンバー削除完了', [$Member->getId()]);
+        } catch (ForeignKeyConstraintViolationException $e) {
+            log_info('メンバー削除エラー', [$Member->getId()]);
+
+            $message = trans('admin.common.delete_error_foreign_key', ['%name%' => $Member->getName()]);
+            $this->addError($message, 'admin');
+        } catch (\Exception $e) {
+            log_info('メンバー削除エラー', [$Member->getId(), $e]);
+
+            $message = trans('admin.common.delete_error');
+            $this->addError($message, 'admin');
+        }
+
+        return $this->redirectToRoute('admin_setting_system_member');
     }
 }

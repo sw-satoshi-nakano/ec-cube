@@ -1,257 +1,353 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Content;
 
-use Eccube\Application;
 use Eccube\Controller\AbstractController;
+use Eccube\Util\FilesystemUtil;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Form\Extension\Core\Type\FormType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Validator\Constraints as Assert;
 
 class FileController extends AbstractController
 {
     const SJIS = 'sjis-win';
     const UTF = 'UTF-8';
-    private $error = null;
+    private $errors = [];
     private $encode = '';
 
-    public function __construct(){
+    /**
+     * FileController constructor.
+     */
+    public function __construct()
+    {
         $this->encode = self::UTF;
         if ('\\' === DIRECTORY_SEPARATOR) {
             $this->encode = self::SJIS;
         }
     }
 
-    public function index(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/content/file_manager", name="admin_content_file")
+     * @Template("@admin/Content/file.twig")
+     */
+    public function index(Request $request)
     {
-        $form = $app['form.factory']->createBuilder('form')
-            ->add('file', 'file')
-            ->add('create_file', 'text')
+        $form = $this->formFactory->createBuilder(FormType::class)
+            ->add('file', FileType::class, [
+                'multiple' => true,
+                'attr' => [
+                    'multiple' => 'multiple'
+                ],
+            ])
+            ->add('create_file', TextType::class)
             ->getForm();
 
         // user_data_dir
-        $topDir = $this->normalizePath($app['config']['user_data_realdir']);
+        $userDataDir = $this->getUserDataDir();
+        $topDir = $this->normalizePath($userDataDir);
+        //        $topDir = '/';
         // user_data_dirの親ディレクトリ
-        $htmlDir = $this->normalizePath($topDir.'/../');
+        $htmlDir = $this->normalizePath($this->getUserDataDir().'/../');
+
         // カレントディレクトリ
-        $nowDir = $this->checkDir($request->get('tree_select_file'), $topDir)
-            ? $this->normalizePath($request->get('tree_select_file'))
+        $nowDir = $this->checkDir($this->getUserDataDir($request->get('tree_select_file')), $this->getUserDataDir())
+            ? $this->normalizePath($this->getUserDataDir($request->get('tree_select_file')))
             : $topDir;
+
         // パンくず表示用データ
         $nowDirList = json_encode(explode('/', trim(str_replace($htmlDir, '', $nowDir), '/')));
-
-        $isTopDir = ($topDir === $nowDir);
+        $jailNowDir = $this->getJailDir($nowDir);
+        $isTopDir = ($topDir === $jailNowDir);
         $parentDir = substr($nowDir, 0, strrpos($nowDir, '/'));
 
         if ('POST' === $request->getMethod()) {
             switch ($request->get('mode')) {
                 case 'create':
-                    $this->create($app, $request);
+                    $this->create($request);
                     break;
                 case 'upload':
-                    $this->upload($app, $request);
+                    $this->upload($request);
                     break;
                 default:
                     break;
             }
         }
+        $tree = $this->getTree($this->getUserDataDir(), $request);
+        $arrFileList = $this->getFileList($nowDir);
+        $paths = $this->getPathsToArray($tree);
+        $tree = $this->getTreeToArray($tree);
 
-        $tree = $this->getTree($topDir, $request);
-        $arrFileList = $this->getFileList($app, $nowDir);
-
-        $javascript = $this->getJsArrayList($tree);
-        $onload = "eccube.fileManager.viewFileTree('tree', arrTree, '" . $nowDir . "', 'tree_select_file', 'tree_status', 'move');";
-
-        return $app->render('Content/file.twig', array(
+        return [
             'form' => $form->createView(),
-            'tpl_onload' => $onload,
-            'tpl_javascript' => $javascript,
-            'top_dir' => $topDir,
+            'tpl_javascript' => json_encode($tree),
+            'top_dir' => $this->getJailDir($topDir),
             'tpl_is_top_dir' => $isTopDir,
-            'tpl_now_dir' => $nowDir,
-            'html_dir' => $htmlDir,
+            'tpl_now_dir' => $jailNowDir,
+            'html_dir' => $this->getJailDir($htmlDir),
             'now_dir_list' => $nowDirList,
-            'tpl_parent_dir' => $parentDir,
+            'tpl_parent_dir' => $this->getJailDir($parentDir),
             'arrFileList' => $arrFileList,
-            'error' => $this->error,
-        ));
+            'errors' => $this->errors,
+            'paths' => json_encode($paths),
+        ];
     }
 
-    public function view(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/content/file_view", name="admin_content_file_view")
+     */
+    public function view(Request $request)
     {
-        $topDir = $app['config']['user_data_realdir'];
-        if ($this->checkDir($this->convertStrToServer($request->get('file')), $topDir)) {
-            $file = $this->convertStrToServer($request->get('file'));
-            setlocale(LC_ALL, "ja_JP.UTF-8");
-            return $app->sendFile($file);
+        $file = $this->convertStrToServer($this->getUserDataDir($request->get('file')));
+        if ($this->checkDir($file, $this->getUserDataDir())) {
+            setlocale(LC_ALL, 'ja_JP.UTF-8');
+
+            return new BinaryFileResponse($file);
         }
 
         throw new NotFoundHttpException();
     }
 
-    public function create(Application $app, Request $request)
+    /**
+     * Create directory
+     *
+     * @param Request $request
+     */
+    public function create(Request $request)
     {
-
-        $form = $app['form.factory']->createBuilder('form')
-            ->add('file', 'file')
-            ->add('create_file', 'text')
+        $form = $this->formFactory->createBuilder(FormType::class)
+            ->add('file', FileType::class, [
+                'multiple' => true,
+                'attr' => [
+                    'multiple' => 'multiple'
+                ],
+            ])
+            ->add('create_file', TextType::class, [
+                'constraints' => [
+                    new Assert\NotBlank(),
+                    new Assert\Regex([
+                        'pattern' => '/[^[:alnum:]_.\\-]/',
+                        'match' => false,
+                        'message' => 'file.text.error.folder_symbol',
+                    ]),
+                    new Assert\Regex([
+                        'pattern' => "/^\.(.*)$/",
+                        'match' => false,
+                        'message' => 'file.text.error.folder_period',
+                    ]),
+                ],
+            ])
             ->getForm();
 
         $form->handleRequest($request);
-
-        if ($form->isValid()) {
-
-            $fs = new Filesystem();
-            $filename = $form->get('create_file')->getData();
-
-            $pattern = "/[^[:alnum:]_.\\-]/";
-            $pattern2 = "/^\.(.*)$/";
-            if (empty($filename)) {
-                $this->error = array('message' => 'フォルダ作成名が入力されていません。');
-            } elseif (strlen($filename) > 0 && preg_match($pattern, $filename)) {
-                $this->error = array('message' => 'フォルダ名には、英数字、記号（_ - .）のみを入力して下さい。');
-            } elseif (strlen($filename) > 0 && preg_match($pattern2, $filename)) {
-                $this->error = array('message' => '.から始まるフォルダ名は作成できません。');
-            } else {
-                $topDir = $app['config']['user_data_realdir'];
-                $nowDir = $this->checkDir($request->get('now_dir'), $topDir)
-                    ? $this->normalizePath($request->get('now_dir'))
-                    : $topDir;
-                $fs->mkdir($nowDir . '/' . $filename);
-
-                $app->addSuccess('admin.create.complete', 'admin');
+        if (!$form->isValid()) {
+            foreach ($form->getErrors(true) as $error) {
+                $this->errors[] = ['message' => $error->getMessage()];
             }
+
+            return;
+        }
+
+        $fs = new Filesystem();
+        $filename = $form->get('create_file')->getData();
+
+        try {
+            $topDir = $this->getUserDataDir();
+            $nowDir = $this->getUserDataDir($request->get('now_dir'));
+            $nowDir = $this->checkDir($nowDir, $topDir)
+                ? $this->normalizePath($nowDir)
+                : $topDir;
+            $fs->mkdir($nowDir.'/'.$filename);
+
+            $this->addSuccess('admin.common.create_complete', 'admin');
+        } catch (IOException $e) {
+            $this->errors[] = ['message' => $e->getMessage()];
         }
     }
 
-    public function delete(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/content/file_delete", name="admin_content_file_delete", methods={"DELETE"})
+     */
+    public function delete(Request $request)
     {
+        $this->isTokenValid();
 
-        $this->isTokenValid($app);
+        $selectFile = $request->get('select_file');
+        if (is_null($selectFile) || $selectFile == '/') {
+            return $this->redirectToRoute('admin_content_file');
+        }
 
-        $topDir = $app['config']['user_data_realdir'];
-        if ($this->checkDir($this->convertStrToServer($request->get('select_file')), $topDir)) {
+        $topDir = $this->getUserDataDir();
+        $file = $this->convertStrToServer($this->getUserDataDir($selectFile));
+        if ($this->checkDir($file, $topDir)) {
             $fs = new Filesystem();
-            if ($fs->exists($this->convertStrToServer($request->get('select_file')))) {
-                $fs->remove($this->convertStrToServer($request->get('select_file')));
-                $app->addSuccess('admin.delete.complete', 'admin');
+            if ($fs->exists($file)) {
+                $fs->remove($file);
+                $this->addSuccess('admin.common.delete_complete', 'admin');
             }
         }
 
-        return $app->redirect($app->url('admin_content_file'));
+        // 削除実行時のカレントディレクトリを表示させる
+        return $this->redirectToRoute('admin_content_file', array('tree_select_file' => dirname($selectFile)));
     }
 
-    public function download(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/content/file_download", name="admin_content_file_download")
+     */
+    public function download(Request $request)
     {
-        $topDir = $app['config']['user_data_realdir'];
-        $file = $this->convertStrToServer($request->get('select_file'));
+        $topDir = $this->getUserDataDir();
+        $file = $this->convertStrToServer($this->getUserDataDir($request->get('select_file')));
         if ($this->checkDir($file, $topDir)) {
             if (!is_dir($file)) {
-                $filename = $this->convertStrFromServer($file);
                 setlocale(LC_ALL, 'ja_JP.UTF-8');
                 $pathParts = pathinfo($file);
 
-                $patterns = array(
+                $patterns = [
                     '/[a-zA-Z0-9!"#$%&()=~^|@`:*;+{}]/',
                     '/[- ,.<>?_[\]\/\\\\]/',
                     "/['\r\n\t\v\f]/",
-                );
+                ];
 
                 $str = preg_replace($patterns, '', $pathParts['basename']);
                 if (strlen($str) === 0) {
-                    return $app->sendFile($file)->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT);
+                    return (new BinaryFileResponse($file))->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT);
                 } else {
-                    return $app->sendFile($file, 200, array(
-                        "Content-Type" => "aplication/octet-stream;",
-                        "Content-Disposition" => "attachment; filename*=UTF-8\'\'".rawurlencode($this->convertStrFromServer($pathParts['basename']))
-                    ));
+                    return new BinaryFileResponse($file, 200, [
+                        'Content-Type' => 'aplication/octet-stream;',
+                        'Content-Disposition' => "attachment; filename*=UTF-8\'\'".rawurlencode($this->convertStrFromServer($pathParts['basename'])),
+                    ]);
                 }
             }
         }
         throw new NotFoundHttpException();
     }
 
-    public function upload(Application $app, Request $request)
+    public function upload(Request $request)
     {
-        $form = $app['form.factory']->createBuilder('form')
-            ->add('file', 'file')
-            ->add('create_file', 'text')
+        $form = $this->formFactory->createBuilder(FormType::class)
+            ->add('file', FileType::class, [
+                'multiple' => true,
+                'constraints' => [
+                    new Assert\NotBlank([
+                        'message' => 'admin.common.file_select_empty',
+                    ]),
+                ],
+            ])
+            ->add('create_file', TextType::class)
             ->getForm();
 
         $form->handleRequest($request);
 
-        if ($form->isValid()) {
-            $data = $form->getData();
-            if (empty($data['file'])) {
-                $this->error = array('message' => 'ファイルが選択されていません。');
-            } else {
-                $topDir = $app['config']['user_data_realdir'];
-                if ($this->checkDir($request->get('now_dir'), $topDir)) {
-                    $filename = $this->convertStrToServer($data['file']->getClientOriginalName());
-                    $data['file']->move($request->get('now_dir'), $filename);
-
-                    $app->addSuccess('admin.save.complete', 'admin');
-                }
+        if (!$form->isValid()) {
+            foreach ($form->getErrors(true) as $error) {
+                $this->errors[] = ['message' => $error->getMessage()];
             }
+
+            return;
+        }
+
+        $data = $form->getData();
+        $topDir = $this->getUserDataDir();
+        $nowDir = $this->getUserDataDir($request->get('now_dir'));
+
+        if (!$this->checkDir($nowDir, $topDir)) {
+            $this->errors[] = ['message' => 'file.text.error.invalid_upload_folder'];
+            return;
+        }
+
+        $uploadCount = count($data['file']);
+        $successCount = 0;
+
+        foreach ($data['file'] as $file) {
+            $filename = $this->convertStrToServer($file->getClientOriginalName());
+            try {
+                $file->move($nowDir, $filename);
+                $successCount ++;
+            } catch (FileException $e) {
+                $this->errors[] = ['message' => trans('admin.content.file.upload_error', [
+                    '%file_name%' => $filename,
+                    '%error%' => $e->getMessage()
+                ])];
+            }
+        }
+        if ($successCount > 0) {
+            $this->addSuccess(trans('admin.content.file.upload_complete', [
+                '%success%' => $successCount,
+                '%count%' => $uploadCount
+            ]), 'admin');
         }
     }
 
-    private function getJsArrayList($tree)
+    private function getTreeToArray($tree)
     {
-        $str = "arrTree = new Array();\n";
+        $arrTree = [];
         foreach ($tree as $key => $val) {
-            $str .= 'arrTree[' . $key . "] = new Array(" . $key . ", '" . $val['type'] . "', '" . $val['path'] . "', " . $val['rank'] . ',';
-            if ($val['open']) {
-                $str .= "true);\n";
-            } else {
-                $str .= "false);\n";
-            }
+            $path = $this->getJailDir($val['path']);
+            $arrTree[$key] = [
+                $key,
+                $val['type'],
+                $path,
+                $val['depth'],
+                $val['open'] ? 'true' : 'false',
+            ];
         }
 
-        return $str;
+        return $arrTree;
     }
 
+    private function getPathsToArray($tree)
+    {
+        $paths = [];
+        foreach ($tree as $val) {
+            $paths[] = $this->getJailDir($val['path']);
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @param string $topDir
+     * @param Request $request
+     */
     private function getTree($topDir, $request)
     {
         $finder = Finder::create()->in($topDir)
             ->directories()
             ->sortByName();
 
-        $tree = array();
-        $tree[] = array(
+        $tree = [];
+        $tree[] = [
             'path' => $topDir,
             'type' => '_parent',
-            'rank' => 0,
+            'depth' => 0,
             'open' => true,
-        );
+        ];
 
-        $defaultRank = count(explode('/', $topDir));
+        $defaultDepth = count(explode('/', $topDir));
 
-        $openDirs = array();
+        $openDirs = [];
         if ($request->get('tree_status')) {
             $openDirs = explode('|', $request->get('tree_status'));
         }
@@ -259,61 +355,84 @@ class FileController extends AbstractController
         foreach ($finder as $dirs) {
             $path = $this->normalizePath($dirs->getRealPath());
             $type = (iterator_count(Finder::create()->in($path)->directories())) ? '_parent' : '_child';
-            $rank = count(explode('/', $path)) - $defaultRank;
-
-            $tree[] = array(
+            $depth = count(explode('/', $path)) - $defaultDepth;
+            $tree[] = [
                 'path' => $path,
                 'type' => $type,
-                'rank' => $rank,
+                'depth' => $depth,
                 'open' => (in_array($path, $openDirs)) ? true : false,
-            );
+            ];
         }
 
         return $tree;
     }
 
-    private function getFileList($app, $nowDir)
+    /**
+     * @param string $nowDir
+     */
+    private function getFileList($nowDir)
     {
-        $topDir = $app['config']['user_data_realdir'];
+        $topDir = $this->getuserDataDir();
         $filter = function (\SplFileInfo $file) use ($topDir) {
             $acceptPath = realpath($topDir);
             $targetPath = $file->getRealPath();
-            return (strpos($targetPath, $acceptPath) === 0);
+
+            return strpos($targetPath, $acceptPath) === 0;
         };
 
-        $dirFinder = Finder::create()
+        $finder = Finder::create()
             ->filter($filter)
             ->in($nowDir)
-            ->directories()
+            ->ignoreDotFiles(false)
             ->sortByName()
             ->depth(0);
-        $fileFinder = Finder::create()
-            ->filter($filter)
-            ->in($nowDir)
-            ->files()
-            ->sortByName()
-            ->depth(0);
-        $dirs = iterator_to_array($dirFinder);
-        $files = iterator_to_array($fileFinder);
+        $dirFinder = $finder->directories();
+        try {
+            $dirs = $dirFinder->getIterator();
+        } catch (\Exception $e) {
+            $dirs = [];
+        }
 
-        $arrFileList = array();
+        $fileFinder = $finder->files();
+        try {
+            $files = $fileFinder->getIterator();
+        } catch (\Exception $e) {
+            $files = [];
+        }
+
+        $arrFileList = [];
         foreach ($dirs as $dir) {
-            $arrFileList[] = array(
+            $dirPath = $this->normalizePath($dir->getRealPath());
+            $childDir = Finder::create()
+                ->in($dirPath)
+                ->ignoreDotFiles(false)
+                ->directories()
+                ->depth(0);
+            $childFile = Finder::create()
+                ->in($dirPath)
+                ->ignoreDotFiles(false)
+                ->files()
+                ->depth(0);
+            $countNumber = $childDir->count() + $childFile->count();
+            $arrFileList[] = [
                 'file_name' => $this->convertStrFromServer($dir->getFilename()),
-                'file_path' => $this->convertStrFromServer($this->normalizePath($dir->getRealPath())),
-                'file_size' => $dir->getSize(),
-                'file_time' => date("Y/m/d", $dir->getmTime()),
+                'file_path' => $this->convertStrFromServer($this->getJailDir($dirPath)),
+                'file_size' => FilesystemUtil::sizeToHumanReadable($dir->getSize()),
+                'file_time' => $dir->getmTime(),
                 'is_dir' => true,
-            );
+                'is_empty' => $countNumber == 0 ? true : false,
+            ];
         }
         foreach ($files as $file) {
-            $arrFileList[] = array(
+            $arrFileList[] = [
                 'file_name' => $this->convertStrFromServer($file->getFilename()),
-                'file_path' => $this->convertStrFromServer($this->normalizePath($file->getRealPath())),
-                'file_size' => $file->getSize(),
-                'file_time' => date("Y/m/d", $file->getmTime()),
+                'file_path' => $this->convertStrFromServer($this->getJailDir($this->normalizePath($file->getRealPath()))),
+                'file_size' => FilesystemUtil::sizeToHumanReadable($file->getSize()),
+                'file_time' => $file->getmTime(),
                 'is_dir' => false,
-            );
+                'is_empty' => false,
+                'extension' => $file->getExtension(),
+            ];
         }
 
         return $arrFileList;
@@ -324,18 +443,26 @@ class FileController extends AbstractController
         return str_replace('\\', '/', realpath($path));
     }
 
+    /**
+     * @param string $topDir
+     */
     protected function checkDir($targetDir, $topDir)
     {
         $targetDir = realpath($targetDir);
         $topDir = realpath($topDir);
-        return (strpos($targetDir, $topDir) === 0);
+
+        return strpos($targetDir, $topDir) === 0;
     }
 
+    /**
+     * @return string
+     */
     private function convertStrFromServer($target)
     {
         if ($this->encode == self::SJIS) {
             return mb_convert_encoding($target, self::UTF, self::SJIS);
         }
+
         return $target;
     }
 
@@ -344,6 +471,20 @@ class FileController extends AbstractController
         if ($this->encode == self::SJIS) {
             return mb_convert_encoding($target, self::SJIS, self::UTF);
         }
+
         return $target;
+    }
+
+    private function getUserDataDir($nowDir = null)
+    {
+        return rtrim($this->getParameter('kernel.project_dir').'/html/user_data'.$nowDir, '/');
+    }
+
+    private function getJailDir($path)
+    {
+        $realpath = realpath($path);
+        $jailPath = str_replace(realpath($this->getUserDataDir()), '', $realpath);
+
+        return $jailPath ? $jailPath : '/';
     }
 }

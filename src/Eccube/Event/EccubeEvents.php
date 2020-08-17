@@ -1,35 +1,22 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Event;
 
-
 final class EccubeEvents
 {
-
     /**
-     * Admin/AdminContoller
+     * Admin/AdminController
      */
     // login
     const ADMIN_ADMIM_LOGIN_INITIALIZE = 'admin.admin.login.initialize';
@@ -72,14 +59,12 @@ final class EccubeEvents
 
     // upload
 
-
     /**
      * Admin/Content/LayoutController
      */
     // index
     const ADMIN_CONTENT_LAYOUT_INDEX_INITIALIZE = 'admin.content.layout.index.initialize';
     const ADMIN_CONTENT_LAYOUT_INDEX_COMPLETE = 'admin.content.layout.index.complete';
-
 
     /**
      * Admin/Content/NewsController
@@ -93,7 +78,6 @@ final class EccubeEvents
 
     // delete
     const ADMIN_CONTENT_NEWS_DELETE_COMPLETE = 'admin.content.news.delete.complete';
-
 
     /**
      * Admin/Content/PageController
@@ -121,9 +105,10 @@ final class EccubeEvents
     // delete
     const ADMIN_CUSTOMER_DELETE_COMPLETE = 'admin.customer.delete.complete';
 
+    const ADMIN_CUSTOMER_DELIVERY_DELETE_COMPLETE = 'admin.customer.delivery.delete.complete';
+
     // export
     const ADMIN_CUSTOMER_CSV_EXPORT = 'admin.customer.csv.export';
-
 
     /**
      * Admin/Customer/CustomerEditController
@@ -132,6 +117,9 @@ final class EccubeEvents
     const ADMIN_CUSTOMER_EDIT_INDEX_INITIALIZE = 'admin.customer.edit.index.initialize';
     const ADMIN_CUSTOMER_EDIT_INDEX_COMPLETE = 'admin.customer.edit.index.complete';
 
+    // index
+    const ADMIN_CUSTOMER_DELIVERY_EDIT_INDEX_INITIALIZE = 'admin.customer.delivery.edit.index.initialize';
+    const ADMIN_CUSTOMER_DELIVERY_EDIT_INDEX_COMPLETE = 'admin.customer.delivery.edit.index.complete';
 
     /**
      * Admin/Order/EditController
@@ -155,7 +143,6 @@ final class EccubeEvents
     const ADMIN_ORDER_EDIT_SEARCH_PRODUCT_SEARCH = 'admin.order.edit.search.product.search';
     const ADMIN_ORDER_EDIT_SEARCH_PRODUCT_COMPLETE = 'admin.order.edit.search.product.complete';
 
-
     /**
      * Admin/Order/MailController
      */
@@ -174,7 +161,6 @@ final class EccubeEvents
     const ADMIN_ORDER_MAIL_MAIL_ALL_CONFIRM = 'admin.order.mail.mail.all.confirm';
     const ADMIN_ORDER_MAIL_MAIL_ALL_COMPLETE = 'admin.order.mail.mail.all.complete';
 
-
     /**
      * Admin/Order/OrderController
      */
@@ -191,6 +177,12 @@ final class EccubeEvents
     // exportShipping
     const ADMIN_ORDER_CSV_EXPORT_SHIPPING = 'admin.order.csv.export.shipping';
 
+    /**
+     * Admin/Shipping/ShippingController
+     */
+    // index
+    const ADMIN_SHIPPING_INDEX_INITIALIZE = 'admin.shipping.index.initialize';
+    const ADMIN_SHIPPING_INDEX_SEARCH = 'admin.shipping.index.search';
 
     /**
      * Admin/Product/CategoryController
@@ -205,6 +197,15 @@ final class EccubeEvents
     // export
     const ADMIN_PRODUCT_CATEGORY_CSV_EXPORT = 'admin.product.category.csv.export';
 
+    /**
+     * Admin/Product/TagController
+     */
+    // index
+    const ADMIN_PRODUCT_TAG_INDEX_INITIALIZE = 'admin.product.tag.index.initialize';
+    const ADMIN_PRODUCT_TAG_INDEX_COMPLETE = 'admin.product.tag.index.complete';
+
+    // delete
+    const ADMIN_PRODUCT_TAG_DELETE_COMPLETE = 'admin.product.tag.delete.complete';
 
     /**
      * Admin/Product/ClassCategoryController
@@ -216,7 +217,6 @@ final class EccubeEvents
     // delete
     const ADMIN_PRODUCT_CLASS_CATEGORY_DELETE_COMPLETE = 'admin.product.class.category.delete.complete';
 
-
     /**
      * Admin/Product/ClassNameController
      */
@@ -227,16 +227,14 @@ final class EccubeEvents
     // delete
     const ADMIN_PRODUCT_CLASS_NAME_DELETE_COMPLETE = 'admin.product.class.name.delete.complete';
 
-
     /**
      * Admin/Product/CsvImportController
      */
     // csvProduct
 
-    // csvCatgory
+    // csvCategory
 
     // csvTemplate
-
 
     /**
      * Admin/Product/ProductClassController
@@ -250,7 +248,6 @@ final class EccubeEvents
     const ADMIN_PRODUCT_PRODUCT_CLASS_EDIT_COMPLETE = 'admin.product.product.class.edit.complete';
     const ADMIN_PRODUCT_PRODUCT_CLASS_EDIT_UPDATE = 'admin.product.product.class.edit.update';
     const ADMIN_PRODUCT_PRODUCT_CLASS_EDIT_DELETE = 'admin.product.product.class.edit.delete';
-
 
     /**
      * Admin/Product/ProductController
@@ -279,20 +276,12 @@ final class EccubeEvents
     // export
     const ADMIN_PRODUCT_CSV_EXPORT = 'admin.product.csv.export';
 
-
     /**
      * Admin/Setting/Shop/CsvController
      */
     // index
     const ADMIN_SETTING_SHOP_CSV_INDEX_INITIALIZE = 'admin.setting.shop.csv.index.initialize';
     const ADMIN_SETTING_SHOP_CSV_INDEX_COMPLETE = 'admin.setting.shop.csv.index.complete';
-
-    /**
-     * Admin/Setting/Shop/CustomerAgreementController
-     */
-    // index
-    const ADMIN_SETTING_SHOP_CUSTOMER_AGREEMENT_INDEX_INITIALIZE = 'admin.setting.shop.customer.agreement.index.initialize';
-    const ADMIN_SETTING_SHOP_CUSTOMER_AGREEMENT_INDEX_COMPLETE = 'admin.setting.shop.customer.agreement.index.complete';
 
     /**
      * Admin/Setting/Shop/DeliveryController
@@ -304,6 +293,8 @@ final class EccubeEvents
     const ADMIN_SETTING_SHOP_DELIVERY_EDIT_COMPLETE = 'admin.setting.shop.delivery.edit.complete';
     // delete
     const ADMIN_SETTING_SHOP_DELIVERY_DELETE_COMPLETE = 'admin.setting.shop.delivery.delete.complete';
+    // visibility
+    const ADMIN_SETTING_SHOP_DELIVERY_VISIBILITY_COMPLETE = 'admin.setting.shop.delivery.visibility.complete';
 
     /**
      * Admin/Setting/Shop/MailController
@@ -311,6 +302,8 @@ final class EccubeEvents
     // index
     const ADMIN_SETTING_SHOP_MAIL_INDEX_INITIALIZE = 'admin.setting.shop.mail.index.initialize';
     const ADMIN_SETTING_SHOP_MAIL_INDEX_COMPLETE = 'admin.setting.shop.mail.index.complete';
+    // preview
+    const ADMIN_SETTING_SHOP_MAIL_PREVIEW_COMPLETE = 'admin.setting.shop.mail.preview.complete';
 
     /**
      * Admin/Setting/Shop/PaymentController
@@ -345,19 +338,11 @@ final class EccubeEvents
     const ADMIN_SETTING_SHOP_TAX_RULE_EDIT_PARAMETER_COMPLETE = 'admin.setting.shop.tax.rule.edit.parameter.complete';
 
     /**
-     * Admin/Setting/Shop/TradelawController
-     */
-    // index
-    const ADMIN_SETTING_SHOP_TRADE_LAW_INDEX_INITIALIZE = 'admin.setting.shop.trade.law.index.initialize';
-    const ADMIN_SETTING_SHOP_TRADE_LAW_INDEX_COMPLETE = 'admin.setting.shop.trade.law.index.complete';
-
-    /**
      * Admin/Setting/System/AuthorityController
      */
     // index
     const ADMIN_SETTING_SYSTEM_AUTHORITY_INDEX_INITIALIZE = 'admin.setting.system.authority.index.initialize';
     const ADMIN_SETTING_SYSTEM_AUTHORITY_INDEX_COMPLETE = 'admin.setting.system.authority.index.complete';
-
 
     /**
      * Admin/Setting/System/LogController
@@ -365,7 +350,6 @@ final class EccubeEvents
     // index
     const ADMIN_SETTING_SYSTEM_LOG_INDEX_INITIALIZE = 'admin.setting.system.log.index.initialize';
     const ADMIN_SETTING_SYSTEM_LOG_INDEX_COMPLETE = 'admin.setting.system.log.index.complete';
-
 
     /**
      * Admin/Setting/System/MasterdataController
@@ -380,7 +364,6 @@ final class EccubeEvents
     const ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_FORM_INITIALIZE = 'admin.setting.system.masterdata.edit.form.initialize';
     const ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_COMPLETE = 'admin.setting.system.masterdata.edit.complete';
 
-
     /**
      * Admin/Setting/System/MemberController
      */
@@ -394,7 +377,6 @@ final class EccubeEvents
     // delete
     const ADMIN_SETTING_SYSTEM_MEMBER_DELETE_INITIALIZE = 'admin.setting.system.member.delete.initialize';
     const ADMIN_SETTING_SYSTEM_MEMBER_DELETE_COMPLETE = 'admin.setting.system.member.delete.complete';
-
 
     /**
      * Block/SearchProductController
@@ -478,7 +460,6 @@ final class EccubeEvents
     const FRONT_CART_BUYSTEP_INITIALIZE = 'front.cart.buystep.initialize';
     const FRONT_CART_BUYSTEP_COMPLETE = 'front.cart.buystep.complete';
 
-
     /**
      * ContactController
      */
@@ -519,6 +500,11 @@ final class EccubeEvents
     const FRONT_PRODUCT_DETAIL_FAVORITE = 'front.product.detail.favorite';
     const FRONT_PRODUCT_DETAIL_COMPLETE = 'front.product.detail.complete';
 
+    const FRONT_PRODUCT_CART_ADD_INITIALIZE = 'front.product.cart.add.initialize';
+    const FRONT_PRODUCT_CART_ADD_COMPLETE = 'front.product.cart.add.complete';
+
+    const FRONT_PRODUCT_FAVORITE_ADD_INITIALIZE = 'front.product.favorite.add.initialize';
+    const FRONT_PRODUCT_FAVORITE_ADD_COMPLETE = 'front.product.favorite.add.complete';
 
     /**
      * ShoppingController
@@ -579,13 +565,11 @@ final class EccubeEvents
     // shippingError
     const FRONT_SHOPPING_SHIPPING_ERROR_COMPLETE = 'front.shopping.shipping.error.complete';
 
-
     /**
      * UserDataController
      */
     // index
     const FRONT_USER_DATA_INDEX_INITIALIZE = 'front.user.data.index.initialize';
-
 
     /**
      * MailService
@@ -599,11 +583,4 @@ final class EccubeEvents
     const MAIL_ADMIN_ORDER = 'mail.admin.order';
     const MAIL_PASSWORD_RESET = 'mail.password.reset';
     const MAIL_PASSWORD_RESET_COMPLETE = 'mail.password.reset.complete';
-
-    /**
-     * ShoppingService
-     */
-    const SERVICE_SHOPPING_ORDER_STATUS = 'service.shopping.order.status';
-    const SERVICE_SHOPPING_NOTIFY_COMPLETE = 'service.shopping.notify.complete';
-
 }

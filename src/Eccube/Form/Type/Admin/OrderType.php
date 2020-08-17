@@ -1,47 +1,88 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
-use Eccube\Common\Constant;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\ORM\EntityManagerInterface;
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\Master\OrderStatus;
+use Eccube\Entity\Order;
+use Eccube\Entity\Payment;
 use Eccube\Form\DataTransformer;
+use Eccube\Form\Type\AddressType;
+use Eccube\Form\Type\KanaType;
+use Eccube\Form\Type\NameType;
+use Eccube\Form\Type\PhoneNumberType;
+use Eccube\Form\Type\PostalType;
+use Eccube\Form\Type\PriceType;
+use Eccube\Form\Validator\Email;
+use Eccube\Repository\Master\OrderStatusRepository;
+use Eccube\Service\OrderStateMachine;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CollectionType;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class OrderType extends AbstractType
 {
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
 
-    protected $app;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($app)
-    {
-        $this->app = $app;
+    /**
+     * @var OrderStateMachine
+     */
+    protected $orderStateMachine;
+
+    /**
+     * @var OrderStatusRepository
+     */
+    protected $orderStatusRepository;
+
+    /**
+     * OrderType constructor.
+     *
+     * @param EntityManagerInterface $entityManager
+     * @param EccubeConfig $eccubeConfig
+     * @param OrderStateMachine $orderStateMachine
+     */
+    public function __construct(
+        EntityManagerInterface $entityManager,
+        EccubeConfig $eccubeConfig,
+        OrderStateMachine $orderStateMachine,
+        OrderStatusRepository $orderStatusRepository
+    ) {
+        $this->entityManager = $entityManager;
+        $this->eccubeConfig = $eccubeConfig;
+        $this->orderStateMachine = $orderStateMachine;
+        $this->orderStatusRepository = $orderStatusRepository;
     }
 
     /**
@@ -49,292 +90,409 @@ class OrderType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $app = $this->app;
-        $config = $app['config'];
-        $BaseInfo = $app['eccube.repository.base_info']->get();
+        $builder
+            ->add('name', NameType::class, [
+                'required' => false,
+                'options' => [
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                    ],
+                ],
+            ])
+            ->add('kana', KanaType::class, [
+                'required' => false,
+                'options' => [
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                    ],
+                ],
+            ])
+            ->add('company_name', TextType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('postal_code', PostalType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+                'options' => [
+                    'attr' => ['class' => 'p-postal-code'],
+                ],
+            ])
+            ->add('address', AddressType::class, [
+                'required' => false,
+                'pref_options' => [
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                    ],
+                    'attr' => ['class' => 'p-region-id'],
+                ],
+                'addr01_options' => [
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                        new Assert\Length([
+                            'max' => $this->eccubeConfig['eccube_mtext_len'],
+                        ]),
+                    ],
+                    'attr' => ['class' => 'p-locality p-street-address'],
+                ],
+                'addr02_options' => [
+                    'required' => false,
+                    'constraints' => [
+                        new Assert\NotBlank(),
+                        new Assert\Length([
+                            'max' => $this->eccubeConfig['eccube_mtext_len'],
+                        ]),
+                    ],
+                    'attr' => ['class' => 'p-extended-address'],
+                ],
+            ])
+            ->add('email', EmailType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\NotBlank(),
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('phone_number', PhoneNumberType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+            ])
+            ->add('company_name', TextType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('message', TextareaType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_ltext_len'],
+                    ]),
+                ],
+            ])
+            ->add('discount', PriceType::class, [
+                'required' => false,
+            ])
+            ->add('delivery_fee_total', PriceType::class, [
+                'required' => false,
+            ])
+            ->add('charge', PriceType::class, [
+                'required' => false,
+            ])
+            ->add('use_point', NumberType::class, [
+                'required' => true,
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => "/^\d+$/u",
+                        'message' => 'form_error.numeric_only',
+                    ]),
+                ],
+            ])
+            ->add('note', TextareaType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_ltext_len'],
+                    ]),
+                ],
+            ])
+            ->add('Payment', EntityType::class, [
+                'required' => false,
+                'class' => Payment::class,
+                'choice_label' => function (Payment $Payment) {
+                    return $Payment->isVisible()
+                        ? $Payment->getMethod()
+                        : $Payment->getMethod().trans('admin.common.hidden_label');
+                },
+                'placeholder' => false,
+                'query_builder' => function ($er) {
+                    return $er->createQueryBuilder('p')
+                        ->orderBy('p.visible', 'DESC')  // 非表示は下に配置
+                        ->addOrderBy('p.sort_no', 'ASC');
+                },
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+            ])
+            ->add('OrderItems', CollectionType::class, [
+                'entry_type' => OrderItemType::class,
+                'allow_add' => true,
+                'allow_delete' => true,
+                'prototype' => true,
+            ])
+            ->add('OrderItemsErrors', TextType::class, [
+                'mapped' => false,
+            ])
+            ->add('return_link', HiddenType::class, [
+                'mapped' => false,
+            ]);
 
         $builder
-            ->add('name', 'name', array(
-                'required' => false,
-                'options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                    ),
-                ),
-            ))
-            ->add('kana', 'kana', array(
-                'required' => false,
-                'options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                    ),
-                ),
-            ))
-            ->add('company_name', 'text', array(
-                'label' => '会社名',
-                'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    ))
-                ),
-            ))
-            ->add('zip', 'zip', array(
-                'required' => false,
-                'options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                    ),
-                    'attr' => array('class' => 'p-postal-code'),
-                ),
-            ))
-            ->add('address', 'address', array(
-                'required' => false,
-                'pref_options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                    ),
-                    'attr' => array('class' => 'p-region-id'),
-                ),
-                'addr01_options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                        new Assert\Length(array(
-                            'max' => $config['mtext_len'],
-                        )),
-                    ),
-                    'attr' => array('class' => 'p-locality p-street-address'),
-                ),
-                'addr02_options' => array(
-                    'required' => false,
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                        new Assert\Length(array(
-                            'max' => $config['mtext_len'],
-                        )),
-                    ),
-                    'attr' => array('class' => 'p-extended-address'),
-                ),
-            ))
-            ->add('email', 'email', array(
-                'required' => false,
-                'label' => 'メールアドレス',
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('tel', 'tel', array(
-                'required' => false,
-                'options' => array(
-                    'constraints' => array(
-                        new Assert\NotBlank(),
-                    ),
-                ),
-            ))
-            ->add('fax', 'tel', array(
-                'label' => 'FAX番号',
-                'required' => false,
-            ))
-            ->add('company_name', 'text', array(
-                'label' => '会社名',
-                'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    ))
-                ),
-            ))
-            ->add('message', 'textarea', array(
-                'label' => 'お問い合わせ',
-                'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['ltext_len'],
-                    )),
-                ),
-            ))
-            ->add('discount', 'money', array(
-                'label' => '値引き',
-                'currency' => 'JPY',
-                'precision' => 0,
-                'scale' => 0,
-                'grouping' => true,
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $config['int_len'],
-                    )),
-                ),
-            ))
-            ->add('delivery_fee_total', 'money', array(
-                'label' => '送料',
-                'currency' => 'JPY',
-                'precision' => 0,
-                'scale' => 0,
-                'grouping' => true,
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $config['int_len'],
-                    )),
-                ),
-            ))
-            ->add('charge', 'money', array(
-                'label' => '手数料',
-                'currency' => 'JPY',
-                'precision' => 0,
-                'scale' => 0,
-                'grouping' => true,
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $config['int_len'],
-                    )),
-                ),
-            ))
-            ->add('note', 'textarea', array(
-                'label' => 'SHOP用メモ欄',
-                'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['ltext_len'],
-                    )),
-                ),
-            ))
-            ->add('OrderStatus', 'entity', array(
-                'class' => 'Eccube\Entity\Master\OrderStatus',
-                'property' => 'name',
-                'empty_value' => '選択してください',
-                'empty_data' => null,
-                'query_builder' => function($er) {
-                    return $er->createQueryBuilder('o')
-                        ->orderBy('o.rank', 'ASC');
-                },
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                ),
-            ))
-            ->add('Payment', 'entity', array(
-                'required' => false,
-                'class' => 'Eccube\Entity\Payment',
-                'property' => 'method',
-                'empty_value' => '選択してください',
-                'empty_data' => null,
-                'constraints' => array(
-                    new Assert\NotBlank(),
-                ),
-            ))
-            ->add('OrderDetails', 'collection', array(
-                'type' => 'order_detail',
-                'allow_add' => true,
-                'allow_delete' => true,
-                'prototype' => true,
-            ))
-            ->add('Shippings', 'collection', array(
-                'type' => 'shipping',
-                'allow_add' => true,
-                'allow_delete' => true,
-                'prototype' => true,
-            ));
-        $builder
-            ->add($builder->create('Customer', 'hidden')
+            ->add($builder->create('Customer', HiddenType::class)
                 ->addModelTransformer(new DataTransformer\EntityToIdTransformer(
-                    $this->app['orm.em'],
+                    $this->entityManager,
                     '\Eccube\Entity\Customer'
                 )));
 
-        $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $event) use ($BaseInfo) {
-
-            $data = $event->getData();
-            $orderDetails = &$data['OrderDetails'];
-
-            // 数量0フィルター
-            $quantityFilter = function ($v) {
-                return !(isset($v['quantity']) && preg_match('/^0+$/', trim($v['quantity'])));
-            };
-
-            if ($BaseInfo->getOptionMultipleShipping() == Constant::ENABLED) {
-
-                $shippings = &$data['Shippings'];
-
-                // 数量を抽出
-                $getQuantity = function ($v) {
-                    return (isset($v['quantity']) && preg_match('/^\d+$/', trim($v['quantity']))) ?
-                        trim($v['quantity']) :
-                        0;
-                };
-
-                foreach ($shippings as &$shipping) {
-                    if (!empty($shipping['ShipmentItems'])) {
-                        $shipping['ShipmentItems'] = array_filter($shipping['ShipmentItems'], $quantityFilter);
-                    }
-                }
-
-                if (!empty($orderDetails)) {
-
-                    foreach ($orderDetails as &$orderDetail) {
-
-                        $orderDetail['quantity'] = 0;
-
-                        // 受注詳細と同じ商品規格のみ抽出
-                        $productClassFilter = function ($v) use ($orderDetail) {
-                            return $orderDetail['ProductClass'] === $v['ProductClass'];
-                        };
-
-                        foreach ($shippings as &$shipping) {
-
-                            if (!empty($shipping['ShipmentItems'])) {
-
-                                // 同じ商品規格の受注詳細の価格を適用
-                                $applyPrice = function (&$v) use ($orderDetail) {
-                                    $v['price'] = ($v['ProductClass'] === $orderDetail['ProductClass']) ?
-                                        $orderDetail['price'] :
-                                        $v['price'];
-                                };
-                                array_walk($shipping['ShipmentItems'], $applyPrice);
-
-                                // 数量適用
-                                $relatedShipmentItems = array_filter($shipping['ShipmentItems'], $productClassFilter);
-                                $quantities = array_map($getQuantity, $relatedShipmentItems);
-                                $orderDetail['quantity'] += array_sum($quantities);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!empty($orderDetails)) {
-                $data['OrderDetails'] = array_filter($orderDetails, $quantityFilter);
-            }
-
-            $event->setData($data);
-        });
-        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
-            $form = $event->getForm();
-            $orderDetails = $form['OrderDetails']->getData();
-            if (empty($orderDetails) || count($orderDetails) < 1) {
-                // 画面下部にエラーメッセージを表示させる
-                $form['charge']->addError(new FormError('商品が追加されていません。'));
-            }
-        });
+        $builder->addEventListener(FormEvents::POST_SET_DATA, [$this, 'sortOrderItems']);
+        $builder->addEventListener(FormEvents::POST_SET_DATA, [$this, 'addOrderStatusForm']);
+        $builder->addEventListener(FormEvents::POST_SET_DATA, [$this, 'addShippingForm']);
+        $builder->addEventListener(FormEvents::POST_SUBMIT, [$this, 'copyFields']);
+        $builder->addEventListener(FormEvents::POST_SUBMIT, [$this, 'validateOrderStatus']);
+        $builder->addEventListener(FormEvents::POST_SUBMIT, [$this, 'validateOrderItems']);
+        $builder->addEventListener(FormEvents::POST_SUBMIT, [$this, 'associateOrderAndShipping']);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'data_class' => 'Eccube\Entity\Order',
-        ));
+        $resolver->setDefaults([
+            'data_class' => Order::class,
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'order';
+    }
+
+    /**
+     * 受注明細をソートする.
+     *
+     * @param FormEvent $event
+     */
+    public function sortOrderItems(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+        if (null === $Order) {
+            return;
+        }
+        $OrderItems = $Order->getItems();
+
+        $form = $event->getForm();
+        $form['OrderItems']->setData($OrderItems);
+    }
+
+    /**
+     * 受注ステータスのフォームを追加する
+     * 新規登録の際は, ユーザ編集不可のため追加しない.
+     *
+     * ステータスのプルダウンは, ステートマシンで遷移可能なステータスのみ表示する.
+     *
+     * @param FormEvent $event
+     */
+    public function addOrderStatusForm(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+        if (null === $Order || ($Order && !$Order->getId())) {
+            return;
+        }
+
+        /** @var ArrayCollection|OrderStatus[] $OrderStatuses */
+        $OrderStatuses = $this->orderStatusRepository->findBy([], ['sort_no' => 'ASC']);
+        $OrderStatuses = new ArrayCollection($OrderStatuses);
+
+        foreach ($OrderStatuses as $Status) {
+            // 同一ステータスはスキップ
+            if ($Order->getOrderStatus()->getId() == $Status->getId()) {
+                continue;
+            }
+            // 遷移できないステータスはリストから除外する.
+            if (!$this->orderStateMachine->can($Order, $Status)) {
+                $OrderStatuses->removeElement($Status);
+            }
+        }
+
+        $form = $event->getForm();
+        $form->add('OrderStatus', EntityType::class, [
+            'class' => OrderStatus::class,
+            'choices' => $OrderStatuses,
+            'choice_label' => 'name',
+            'constraints' => [
+                new Assert\NotBlank(),
+            ],
+            // 変更前後のステータスチェックが必要なのでmapped => false で定義する.
+            'mapped' => false,
+            'data' => $Order->getOrderStatus(),
+        ]);
+    }
+
+    /**
+     * 単一配送時に, Shippingのフォームを追加する.
+     * 複数配送時はShippingの編集は行わない.
+     *
+     * @param FormEvent $event
+     */
+    public function addShippingForm(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+
+        // 複数配送時はShippingの編集は行わない
+        if ($Order && $Order->isMultiple()) {
+            return;
+        }
+
+        $data = $Order ? $Order->getShippings()->first() : null;
+        $form = $event->getForm();
+        $form->add('Shipping', ShippingType::class, [
+            'mapped' => false,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * フォームからPOSTされない情報をコピーする.
+     *
+     * - 支払方法の名称
+     * - 会員の性別/職業/誕生日
+     * - 受注ステータス(新規登録時)
+     *
+     * @param FormEvent $event
+     */
+    public function copyFields(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+
+        // 支払方法の名称をコピーする.
+        if ($Payment = $Order->getPayment()) {
+            $Order->setPaymentMethod($Payment->getMethod());
+        }
+
+        // 会員受注の場合、会員の性別/職業/誕生日をエンティティにコピーする
+        if ($Customer = $Order->getCustomer()) {
+            $Order->setSex($Customer->getSex());
+            $Order->setJob($Customer->getJob());
+            $Order->setBirth($Customer->getBirth());
+        }
+
+        // 新規登録時は, 新規受付ステータスで登録する.
+        if (null === $Order->getOrderStatus()) {
+            $Order->setOrderStatus($this->orderStatusRepository->find(OrderStatus::NEW));
+        } else {
+            // 編集時は, mapped => falseで定義しているため, フォームから変更後データを取得する.
+            $form = $event->getForm();
+            $Order->setOrderStatus($form['OrderStatus']->getData());
+        }
+
+        // 新規登録時は受注日を登録する.
+        if (null === $Order->getOrderDate()) {
+            $Order->setOrderDate(new \DateTime());
+        }
+    }
+
+    /**
+     * 受注ステータスのバリデーションを行う.
+     *
+     * @param FormEvent $event
+     */
+    public function validateOrderStatus(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+        if (!$Order->getId()) {
+            return;
+        }
+
+        $form = $event->getForm();
+        if (!$form['OrderStatus']->isValid()) {
+            return;
+        }
+        // mapped => falseで定義しているため, Orderのステータスは変更されない
+        $oldStatus = $Order->getOrderStatus();
+        // 変更後のステータスはFormから直接取得する.
+        $newStatus = $form['OrderStatus']->getData();
+
+        // ステータスに変更があった場合のみチェックする.
+        if ($oldStatus->getId() != $newStatus->getId()) {
+            if (!$this->orderStateMachine->can($Order, $newStatus)) {
+                $form['OrderStatus']->addError(
+                    new FormError(trans('admin.order.failed_to_change_status__short', [
+                        '%from%' => $oldStatus->getName(),
+                        '%to%' => $newStatus->getName(),
+                    ])));
+            }
+        }
+    }
+
+    /**
+     * 受注明細のバリデーションを行う.
+     * 商品明細が1件も登録されていない場合はエラーとする.
+     *
+     * @param FormEvent $event
+     */
+    public function validateOrderItems(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+        $OrderItems = $Order->getOrderItems();
+
+        $count = 0;
+        foreach ($OrderItems as $OrderItem) {
+            if ($OrderItem->isProduct()) {
+                $count++;
+            }
+        }
+        // 商品明細が1件もない場合はエラーとする.
+        if ($count < 1) {
+            // 画面下部にエラーメッセージを表示させる
+            $form = $event->getForm();
+            $form['OrderItemsErrors']->addError(new FormError(trans('admin.order.product_item_not_found')));
+        }
+    }
+
+    /**
+     * 受注明細と, Order/Shippingの紐付けを行う.
+     *
+     * @param FormEvent $event
+     */
+    public function associateOrderAndShipping(FormEvent $event)
+    {
+        /** @var Order $Order */
+        $Order = $event->getData();
+        $OrderItems = $Order->getOrderItems();
+
+        // 明細とOrder, Shippingを紐付ける.
+        // 新規の明細のみが対象, 更新時はスキップする.
+        foreach ($OrderItems as $OrderItem) {
+            // 更新時はスキップ
+            if ($OrderItem->getId()) {
+                continue;
+            }
+
+            $OrderItem->setOrder($Order);
+
+            // 送料明細の紐付けを行う.
+            // 複数配送の場合は, 常に最初のShippingと紐付ける.
+            // Order::getShippingsは氏名でソートされている.
+            if ($OrderItem->isDeliveryFee()) {
+                $OrderItem->setShipping($Order->getShippings()->first());
+            }
+
+            // 商品明細の紐付けを行う.
+            // 複数配送時は, 明細の追加は行われないためスキップする.
+            if ($OrderItem->isProduct() && !$Order->isMultiple()) {
+                $OrderItem->setShipping($Order->getShippings()->first());
+            }
+        }
     }
 }

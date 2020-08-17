@@ -1,5 +1,16 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Web\Admin;
 
 use Symfony\Component\HttpKernel\Client;
@@ -12,14 +23,14 @@ class AdminControllerProductNonStockTest extends AbstractAdminWebTestCase
     /**
      * @var string
      */
-    protected $target = '#shop_info';
+    protected $target = '#shop-statistical';
 
     /**
      * test redirect when click
      */
     public function testAdminNonStockRedirect()
     {
-        $this->client->request('POST', $this->app->url('admin_homepage_nonstock'));
+        $this->client->request('POST', $this->generateUrl('admin_homepage_nonstock'));
         $this->assertTrue($this->client->getResponse()->isRedirect());
     }
 
@@ -30,7 +41,7 @@ class AdminControllerProductNonStockTest extends AbstractAdminWebTestCase
     {
         /* @var Client $client */
         $client = $this->client;
-        $crawler = $client->request('GET', $this->app->url('admin_homepage'));
+        $crawler = $client->request('GET', $this->generateUrl('admin_homepage'));
         $this->assertTrue($client->getResponse()->isSuccessful());
 
         $this->assertContains('在庫切れ商品', $crawler->filter($this->target)->html());
@@ -39,24 +50,25 @@ class AdminControllerProductNonStockTest extends AbstractAdminWebTestCase
     /**
      * Test count with search
      *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1898
+     * @see https://github.com/EC-CUBE/ec-cube/issues/1898
      */
     public function testAdminNonStockWithSearch()
     {
         /* @var Client $client */
         $client = $this->client;
-        $crawler = $client->request('GET', $this->app->url('admin_homepage'));
+        $crawler = $client->request('GET', $this->generateUrl('admin_homepage'));
         $this->assertTrue($client->getResponse()->isSuccessful());
 
         $this->assertContains('在庫切れ商品', $crawler->filter($this->target)->html());
 
-        $section = trim($crawler->filter($this->target.' .shop-stock-detail .item_number')->text());
+        $section = trim($crawler->filter($this->target.' .card-body .d-block:nth-child(1) span.h4')->text());
         $this->expected = $showNumber = preg_replace('/\D/', '', $section);
 
-        $client->request('POST', $this->app->url('admin_homepage_nonstock'), array('admin_search_product' => array('_token' => 'dummy')));
+        $client->request('POST', $this->generateUrl('admin_homepage_nonstock'),
+                ['admin_search_product' => ['_token' => 'dummy']]);
 
         $crawler = $client->followRedirect();
-        $this->actual = $crawler->filter('.tableish .item_box')->count();
+        $this->actual = $crawler->filter('.table-sm > tbody > tr')->count();
 
         $this->verify();
     }

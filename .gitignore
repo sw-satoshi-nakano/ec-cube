@@ -2,17 +2,24 @@
 !.gitmodule
 composer.phar
 /vendor/
+/node_modules/
+/var/*
+!/var/.gitkeep
 /app/cache/*
 !/app/cache/.gitkeep
-/app/config/eccube/*
-!/app/config/eccube/.gitkeep
 /app/log/*
 !/app/log/.gitkeep
 /app/Plugin/*
 !/app/Plugin/.gitkeep
+!/app/Plugin/ExamplePlugin
+/app/PluginData/*
+!/app/PluginData/.gitkeep
 /app/template/*
 !/app/template/admin
 !/app/template/default
+!/app/template/user_data
+/app/proxy/entity/*
+!/app/proxy/entity/.gitkeep
 /html/plugin/*
 !/html/plugin/.gitkeep
 /html/install/temp/*
@@ -26,10 +33,28 @@ composer.phar
 !/html/template/default
 !/html/template/install
 /html/user_data/*
+!/html/user_data/assets/css/customize.css
+!/html/user_data/assets/js/customize.js
 !/html/user_data/.gitkeep
-/phpunit.xml
 /src/Eccube/Resource/config/*.dist.php
 /tests/tmp/*
 /reports/*
 .idea
+.vscode/
 *.php~
+.env
+.maintenance
+
+###> symfony/phpunit-bridge ###
+.phpunit
+/phpunit.xml
+###< symfony/phpunit-bridge ###
+
+###> friendsofphp/php-cs-fixer ###
+.php_cs
+.php_cs.cache
+###< friendsofphp/php-cs-fixer ###
+
+###> symfony/web-server-bundle ###
+.web-server-pid
+###< symfony/web-server-bundle ###

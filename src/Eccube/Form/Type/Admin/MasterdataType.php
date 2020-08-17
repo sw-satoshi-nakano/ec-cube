@@ -1,40 +1,45 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Form\Type\Admin;
 
+use Doctrine\Common\Persistence\Mapping\Driver\MappingDriver;
+use Doctrine\Common\Persistence\Mapping\Driver\MappingDriverChain;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Class MasterdataType
+ */
 class MasterdataType extends AbstractType
 {
-    protected $app;
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
 
-    public function __construct($app)
+    /**
+     * MasterdataType constructor.
+     *
+     * @param EntityManagerInterface $entityManager
+     */
+    public function __construct(EntityManagerInterface $entityManager)
     {
-        $this->app = $app;
+        $this->entityManager = $entityManager;
     }
 
     /**
@@ -42,23 +47,23 @@ class MasterdataType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        /** @var $app \Eccube\Application */
-        $app = $this->app;
+        $masterdata = [];
 
-        $masterdata = array();
-
-        $driverChain = $app['orm.em']->getConfiguration()->getMetadataDriverImpl();
+        /** @var MappingDriverChain $driverChain */
+        $driverChain = $this->entityManager->getConfiguration()->getMetadataDriverImpl();
+        /** @var MappingDriver[] $drivers */
         $drivers = $driverChain->getDrivers();
 
         foreach ($drivers as $namespace => $driver) {
             if ($namespace == 'Eccube\Entity') {
                 $classNames = $driver->getAllClassNames();
                 foreach ($classNames as $className) {
-                    $meta = $app['orm.em']->getMetadataFactory()->getMetadataFor($className);
+                    /** @var ClassMetadata $meta */
+                    $meta = $this->entityManager->getMetadataFactory()->getMetadataFor($className);
                     if (strpos($meta->rootEntityName, 'Master') !== false
                         && $meta->hasField('id')
                         && $meta->hasField('name')
-                        && $meta->hasField('rank')
+                        && $meta->hasField('sort_no')
                     ) {
                         $metadataName = str_replace('\\', '-', $meta->getName());
                         $masterdata[$metadataName] = $meta->getTableName();
@@ -68,22 +73,21 @@ class MasterdataType extends AbstractType
         }
 
         $builder
-            ->add('masterdata', 'choice', array(
-                'choices' => $masterdata,
+            ->add('masterdata', ChoiceType::class, [
+                'choices' => array_flip($masterdata),
                 'expanded' => false,
                 'multiple' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ))
+                ],
+            ])
             ;
-
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_system_masterdata';
     }

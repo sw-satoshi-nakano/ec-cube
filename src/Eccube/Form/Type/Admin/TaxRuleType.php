@@ -1,102 +1,113 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Entity\TaxRule;
+use Eccube\Form\Type\Master\RoundingTypeType;
+use Eccube\Repository\TaxRuleRepository;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\DateTimeType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Class TaxRuleType
+ */
 class TaxRuleType extends AbstractType
 {
+    protected $taxRuleRepository;
+
+    public function __construct(TaxRuleRepository $taxRuleRepository)
+    {
+        $this->taxRuleRepository = $taxRuleRepository;
+    }
+
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         $builder
-            ->add('option_product_tax_rule', 'choice', array(
-                'label' => '商品別税率機能',
-                'choices' => array(
-                    '1' => '有効',
-                    '0' => '無効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-                'mapped' => false,
-            ))
-            ->add('tax_rate', 'integer', array(
-                'label' => '消費税率',
+            ->add('tax_rate', IntegerType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Range(array('min' => 0, 'max' => 100)),
-                    new Assert\Regex(array(
+                    new Assert\Range(['min' => 0]),
+                    new Assert\Regex([
                         'pattern' => "/^\d+(\.\d+)?$/u",
-                        'message' => 'form.type.float.invalid'
-                    )),
-                ),
-            ))
-            ->add('calc_rule', 'calc_rule', array(
-                'label' => '課税規則',
+                        'message' => 'form_error.float_only',
+                    ]),
+                ],
+            ])
+            ->add('rounding_type', RoundingTypeType::class, [
                 'required' => true,
-            ))
-            ->add('apply_date', 'date', array(
-                'label' => '適用日時',
-                'required' => 'false',
+            ])
+            ->add('apply_date', DateTimeType::class, [
+                'date_widget' => 'choice',
                 'input' => 'datetime',
-                'widget' => 'single_text',
                 'format' => 'yyyy-MM-dd HH:mm',
-                'years' => range(date('Y'), date('Y') + 2),
-                'empty_value' => array(
-                    'year' => '----',
-                    'month' => '--',
-                    'day' => '--',
-                    'hours' => '--',
-                    'minutes' => '--'
-                ),
-                'constraints' => array(
+                'years' => range(date('Y'), date('Y') + 10),
+                'placeholder' => [
+                    'year' => '----', 'month' => '--', 'day' => '--',
+                ],
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ));
+                ],
+            ]);
+
+        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+            /** @var TaxRule $TaxRule */
+            $TaxRule = $event->getData();
+            $qb = $this->taxRuleRepository->createQueryBuilder('t');
+            $qb
+                ->select('count(t.id)')
+                ->where('t.apply_date = :apply_date')
+                ->setParameter('apply_date', $TaxRule->getApplyDate());
+
+            if ($TaxRule->getId()) {
+                $qb
+                    ->andWhere('t.id <> :id')
+                    ->setParameter('id', $TaxRule->getId());
+            }
+            $count = $qb->getQuery()
+                ->getSingleScalarResult();
+            if ($count > 0) {
+                $form = $event->getForm();
+                $form['apply_date']->addError(new FormError(trans('admin.setting.shop.tax.apply_date.available_error')));
+            }
+        });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'allow_extra_fields' => true,
-        ));
+        $resolver->setDefaults([
+            'data_class' => TaxRule::class,
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'tax_rule';
     }

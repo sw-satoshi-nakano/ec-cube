@@ -1,123 +1,71 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Entity\Master;
 
+use Doctrine\ORM\Mapping as ORM;
+
 /**
  * OrderStatus
+ *
+ * @ORM\Table(name="mtb_order_status")
+ * @ORM\InheritanceType("SINGLE_TABLE")
+ * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+ * @ORM\HasLifecycleCallbacks()
+ * @ORM\Entity(repositoryClass="Eccube\Repository\Master\OrderStatusRepository")
+ * @ORM\Cache(usage="NONSTRICT_READ_WRITE")
  */
-class OrderStatus extends \Eccube\Entity\AbstractEntity
+class OrderStatus extends \Eccube\Entity\Master\AbstractMasterEntity
 {
+    /** 新規受付. */
+    const NEW = 1;
+    /** 注文取消し. */
+    const CANCEL = 3;
+    /** 対応中. */
+    const IN_PROGRESS = 4;
+    /** 発送済み. */
+    const DELIVERED = 5;
+    /** 入金済み. */
+    const PAID = 6;
+    /** 決済処理中. */
+    const PENDING = 7;
+    /** 購入処理中. */
+    const PROCESSING = 8;
+    /** 返品 */
+    const RETURNED = 9;
+
     /**
-     * @return string
+     * 受注一覧画面で, ステータスごとの受注件数を表示するかどうか
+     *
+     * @var bool
+     *
+     * @ORM\Column(name="display_order_count", type="boolean", options={"default":false})
      */
-    public function __toString()
+    private $display_order_count = false;
+
+    /**
+     * @return bool
+     */
+    public function isDisplayOrderCount()
     {
-        return $this->getName();
+        return $this->display_order_count;
     }
 
     /**
-     * @var integer
+     * @param bool $display_order_count
      */
-    private $id;
-
-    /**
-     * @var string
-     */
-    private $name;
-
-    /**
-     * @var integer
-     */
-    private $rank;
-
-    /**
-     * Get id
-     *
-     * @return integer
-     */
-    public function getId()
+    public function setDisplayOrderCount($display_order_count = false)
     {
-        return $this->id;
-    }
-
-    /**
-     * Set name
-     *
-     * @param  string      $name
-     * @return OrderStatus
-     */
-    public function setName($name)
-    {
-        $this->name = $name;
-
-        return $this;
-    }
-
-    /**
-     * Get name
-     *
-     * @return string
-     */
-    public function getName()
-    {
-        return $this->name;
-    }
-
-    /**
-     * Set rank
-     *
-     * @param  integer     $rank
-     * @return OrderStatus
-     */
-    public function setRank($rank)
-    {
-        $this->rank = $rank;
-
-        return $this;
-    }
-
-    /**
-     * Get rank
-     *
-     * @return integer
-     */
-    public function getRank()
-    {
-        return $this->rank;
-    }
-
-    /**
-     * Set id
-     *
-     * @param integer $id
-     * @return OrderStatus
-     */
-    public function setId($id)
-    {
-        $this->id = $id;
-
-        return $this;
+        $this->display_order_count = $display_order_count;
     }
 }

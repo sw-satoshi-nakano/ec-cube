@@ -1,13 +1,26 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Repository;
 
-use Eccube\Tests\EccubeTestCase;
-use Eccube\Application;
-use Eccube\Common\Constant;
-use Eccube\Entity\Customer;
 use Eccube\Entity\MailHistory;
 use Eccube\Entity\MailTemplate;
+use Eccube\Repository\MailHistoryRepository;
+use Eccube\Repository\MemberRepository;
+use Eccube\Tests\EccubeTestCase;
+use Eccube\Entity\Member;
+use Eccube\Entity\Customer;
+use Eccube\Entity\Order;
 
 /**
  * MailHistoryRepository test cases.
@@ -16,49 +29,72 @@ use Eccube\Entity\MailTemplate;
  */
 class MailHistoryRepositoryTest extends EccubeTestCase
 {
+    /**
+     * @var Member
+     */
+    protected $Member;
+
+    /**
+     * @var Customer
+     */
     protected $Customer;
+
+    /**
+     * @var Order
+     */
     protected $Order;
+
+    /**
+     * @var MailHistory[]
+     */
     protected $MailHistories;
 
+    /**
+     * @var MailHistoryRepository
+     */
+    protected $mailHistoryRepo;
+
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
         parent::setUp();
         $faker = $this->getFaker();
-        $this->Member = $this->app['eccube.repository.member']->find(2);
+        $this->mailHistoryRepo = $this->container->get(MailHistoryRepository::class);
+
+        $this->Member = $this->container->get(MemberRepository::class)->find(2);
         $this->Customer = $this->createCustomer();
         $this->Order = $this->createOrder($this->Customer);
         $MailTemplate = new MailTemplate();
         $MailTemplate
             ->setName($faker->word)
-            ->setHeader($faker->word)
-            ->setFooter($faker->word)
-            ->setSubject($faker->word)
-            ->setCreator($this->Member)
-            ->setDelFlg(Constant::DISABLED);
-        $this->app['orm.em']->persist($MailTemplate);
-        $this->app['orm.em']->flush();
+            ->setMailSubject($faker->word)
+            ->setCreator($this->Member);
+        $this->entityManager->persist($MailTemplate);
+        $this->entityManager->flush();
         for ($i = 0; $i < 3; $i++) {
             $this->MailHistories[$i] = new MailHistory();
             $this->MailHistories[$i]
-                ->setMailTemplate($MailTemplate)
                 ->setOrder($this->Order)
                 ->setSendDate(new \DateTime())
                 ->setMailBody($faker->realText())
+                ->setMailHtmlBody($faker->realText())
                 ->setCreator($this->Member)
-                ->setSubject('subject-'.$i);
+                ->setMailSubject('mail_subject-'.$i);
 
-            $this->app['orm.em']->persist($this->MailHistories[$i]);
-            $this->app['orm.em']->flush();
+            $this->entityManager->persist($this->MailHistories[$i]);
+            $this->entityManager->flush();
         }
     }
 
     public function testGetByCustomerAndId()
     {
         try {
-            $MailHistory = $this->app['eccube.repository.mail_history']->getByCustomerAndId($this->Customer, $this->MailHistories[0]->getId());
+            $MailHistory = $this->mailHistoryRepo->getByCustomerAndId($this->Customer, $this->MailHistories[0]->getId());
 
-            $this->expected = 'subject-0';
-            $this->actual = $MailHistory->getSubject();
+            $this->expected = 'mail_subject-0';
+            $this->actual = $MailHistory->getMailSubject();
         } catch (\Doctrine\ORM\NoResultException $e) {
             $this->fail($e->getMessage());
         }
@@ -68,7 +104,7 @@ class MailHistoryRepositoryTest extends EccubeTestCase
     public function testGetByCustomerAndIdWithException()
     {
         try {
-            $MailHistory = $this->app['eccube.repository.mail_history']->getByCustomerAndId($this->Customer, 99999);
+            $this->mailHistoryRepo->getByCustomerAndId($this->Customer, 99999);
             $this->fail();
         } catch (\Doctrine\ORM\NoResultException $e) {
             $this->expected = 'No result was found for query although at least one row was expected.';

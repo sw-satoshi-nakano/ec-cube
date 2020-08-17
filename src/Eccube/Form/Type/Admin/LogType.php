@@ -1,40 +1,49 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class LogType extends AbstractType
 {
-    protected $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($config)
+    /**
+     * @var KernelInterface
+     */
+    protected $kernel;
+
+    /**
+     * LogType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     * @param KernelInterface $kernel
+     */
+    public function __construct(EccubeConfig $eccubeConfig, KernelInterface $kernel)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
+        $this->kernel = $kernel;
     }
 
     /**
@@ -42,44 +51,44 @@ class LogType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $config = $this->config;
-
-        $files = array();
+        $files = [];
         $finder = new Finder();
-        $finder->name('*.log')->depth('== 0');
-
-        foreach ($finder->in($config['root_dir'].'/app/log/') as $file) {
+        $finder->name('*.log')
+            ->depth('== 0')
+            ->sort(function (\SplFileInfo $a, \SplFileInfo $b) {
+                return strcmp($b->getMTime(), $a->getMTime());
+            });
+        $dirs = $this->kernel->getLogDir().DIRECTORY_SEPARATOR.$this->kernel->getEnvironment();
+        foreach ($finder->in($dirs) as $file) {
             $files[$file->getFilename()] = $file->getFilename();
         }
 
         $builder
-            ->add('files', 'choice', array(
-                'label' => 'ログファイル',
-                'choices' => $files,
+            ->add('files', ChoiceType::class, [
+                'choices' => array_flip($files),
                 'data' => 'site_'.date('Y-m-d').'.log',
                 'expanded' => false,
                 'multiple' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ))
-            ->add('line_max', 'text', array(
-                'label' => '表示行数',
+                ],
+            ])
+            ->add('line_max', TextType::class, [
                 'data' => '50',
-                'attr' => array(
+                'attr' => [
                     'maxlength' => 5,
-                ),
-                'constraints' => array(
+                ],
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Range(array('min' => 0, 'max' => 50000)),
-                ),
-            ));
+                    new Assert\Range(['min' => 1, 'max' => 50000]),
+                ],
+            ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_system_log';
     }

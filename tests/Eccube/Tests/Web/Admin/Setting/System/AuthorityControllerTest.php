@@ -1,37 +1,52 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Web\Admin\Setting\System;
 
+use Eccube\Repository\AuthorityRoleRepository;
+use Eccube\Repository\Master\AuthorityRepository;
+use Eccube\Repository\MemberRepository;
 use Eccube\Tests\Web\Admin\AbstractAdminWebTestCase;
 
 /**
  * Class AuthorityControllerTest
- * @package Eccube\Tests\Web\Admin\Setting\System
  */
 class AuthorityControllerTest extends AbstractAdminWebTestCase
 {
+    /**
+     * @var MemberRepository;
+     */
+    protected $memberRepository;
+
+    /**
+     * @var AuthorityRepository
+     */
+    protected $authorityMasterRepository;
+
+    /**
+     * @var AuthorityRoleRepository
+     */
+    protected $authorityRoleRepository;
+
+    public function setUp()
+    {
+        parent::setUp();
+
+        $this->memberRepository = $this->container->get(MemberRepository::class);
+        $this->authorityMasterRepository = $this->container->get(AuthorityRepository::class);
+        $this->authorityRoleRepository = $this->container->get(AuthorityRoleRepository::class);
+    }
+
     /**
      * testRoutingAdminSettingSystemAuthority
      */
@@ -40,7 +55,7 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
         $client = $this->client;
         $client->request(
             'GET',
-            $this->app->url('admin_setting_system_authority')
+            $this->generateUrl('admin_setting_system_authority')
         );
         $this->assertTrue($client->getResponse()->isSuccessful());
     }
@@ -52,17 +67,17 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
     {
         $client = $this->client;
 
-        $url = $this->app->url('admin_setting_system_authority');
+        $url = $this->generateUrl('admin_setting_system_authority');
 
         $client->request(
             'GET',
             $url,
-            array(
-                'form' => array(
+            [
+                'form' => [
                     'AuthorityRoles' => $this->createFormData(),
                     '_token' => 'dummy',
-                ),
-            )
+                ],
+            ]
         );
 
         $this->assertTrue($client->getResponse()->isSuccessful());
@@ -73,23 +88,23 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
      */
     public function testAuthoritySubmit()
     {
-        $this->deleteAllRows(array('dtb_authority_role'));
+        $this->deleteAllRows(['dtb_authority_role']);
         $AuthorityRole = $this->newTestAuthorityRole();
         $form = $this->createFormData($AuthorityRole);
-        $url = $this->app->url('admin_setting_system_authority');
+        $url = $this->generateUrl('admin_setting_system_authority');
         // makes the POST request
         $this->client->request(
             'POST',
             $url,
-            array(
-                'form' => array(
+            [
+                'form' => [
                     'AuthorityRoles' => $form,
                     '_token' => 'dummy',
-                ),
-            )
+                ],
+            ]
         );
 
-        $redirectUrl = $this->app->url('admin_setting_system_authority');
+        $redirectUrl = $this->generateUrl('admin_setting_system_authority');
         $this->assertTrue($this->client->getResponse()->isRedirect($redirectUrl));
 
         $this->expected = $form[0]['deny_url'];
@@ -102,31 +117,31 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
      */
     public function testAuthoritySubmitWithoutAuthorityRole()
     {
-        $this->deleteAllRows(array('dtb_authority_role'));
-        $form = array(
-            array(
+        $this->deleteAllRows(['dtb_authority_role']);
+        $form = [
+            [
                 'Authority' => 0,
                 'deny_url' => '/test2',
-            ),
-        );
-        $url = $this->app->url('admin_setting_system_authority');
+            ],
+        ];
+        $url = $this->generateUrl('admin_setting_system_authority');
         // makes the POST request
         $this->client->request(
             'POST',
             $url,
-            array(
-                'form' => array(
+            [
+                'form' => [
                     'AuthorityRoles' => $form,
                     '_token' => 'dummy',
-                ),
-            )
+                ],
+            ]
         );
 
-        $redirectUrl = $this->app->url('admin_setting_system_authority');
+        $redirectUrl = $this->generateUrl('admin_setting_system_authority');
         $this->assertTrue($this->client->getResponse()->isRedirect($redirectUrl));
 
         $this->expected = $form[0]['deny_url'];
-        $AuthorityRole = $this->app['eccube.repository.authority_role']->findOneBy(array('deny_url' => $form[0]['deny_url']));
+        $AuthorityRole = $this->authorityRoleRepository->findOneBy(['deny_url' => $form[0]['deny_url']]);
         $this->actual = $AuthorityRole->getDenyUrl();
         $this->verify();
     }
@@ -136,29 +151,29 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
      */
     public function testAuthoritySubmitRemoveAuthority()
     {
-        $this->deleteAllRows(array('dtb_authority_role'));
-        $form = array(
-            array(
+        $this->deleteAllRows(['dtb_authority_role']);
+        $form = [
+            [
                 'Authority' => null,
                 'deny_url' => null,
-            ),
-        );
+            ],
+        ];
         $AuthorityRole = $this->newTestAuthorityRole();
 
-        $url = $this->app->url('admin_setting_system_authority');
+        $url = $this->generateUrl('admin_setting_system_authority');
         // makes the POST request
         $this->client->request(
             'POST',
             $url,
-            array(
-                'form' => array(
+            [
+                'form' => [
                     'AuthorityRoles' => $form,
                     '_token' => 'dummy',
-                ),
-            )
+                ],
+            ]
         );
 
-        $redirectUrl = $this->app->url('admin_setting_system_authority');
+        $redirectUrl = $this->generateUrl('admin_setting_system_authority');
         $this->assertTrue($this->client->getResponse()->isRedirect($redirectUrl));
 
         $this->assertNull($AuthorityRole->getId());
@@ -169,21 +184,22 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
      */
     private function newTestAuthorityRole()
     {
-        $TestCreator = $this->app['eccube.repository.member']->find(1);
+        $TestCreator = $this->memberRepository->find(1);
         $AuthorityRole = new \Eccube\Entity\AuthorityRole();
-        $Authority = $this->app['eccube.repository.master.authority']->find(0);
+        $Authority = $this->authorityMasterRepository->find(0);
         $AuthorityRole->setAuthority($Authority);
         $AuthorityRole->setDenyUrl('/abab');
         $AuthorityRole->setCreator($TestCreator);
 
-        $this->app['orm.em']->persist($AuthorityRole);
-        $this->app['orm.em']->flush();
+        $this->entityManager->persist($AuthorityRole);
+        $this->entityManager->flush();
 
         return $AuthorityRole;
     }
 
     /**
      * @param null $AuthorityRole
+     *
      * @return array
      */
     protected function createFormData($AuthorityRole = null)
@@ -192,12 +208,12 @@ class AuthorityControllerTest extends AbstractAdminWebTestCase
             $AuthorityRole = $this->newTestAuthorityRole();
         }
 
-        $form = array(
-            array(
+        $form = [
+            [
                  'Authority' => $AuthorityRole->getAuthority()->getId(),
                  'deny_url' => '/test',
-                ),
-            );
+                ],
+            ];
 
         return $form;
     }

@@ -1,40 +1,46 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Front;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Form\Type\AddressType;
+use Eccube\Form\Type\KanaType;
+use Eccube\Form\Type\NameType;
+use Eccube\Form\Type\PhoneNumberType;
+use Eccube\Form\Type\PostalType;
+use Eccube\Form\Validator\Email;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class ContactType extends AbstractType
 {
-    public $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($config)
+    /**
+     * ContactType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -43,40 +49,38 @@ class ContactType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         $builder
-            ->add('name', 'name', array(
+            ->add('name', NameType::class, [
                 'required' => true,
-            ))
-            ->add('kana', 'kana', array(
+            ])
+            ->add('kana', KanaType::class, [
                 'required' => false,
-            ))
-            ->add('zip', 'zip', array(
+            ])
+            ->add('postal_code', PostalType::class, [
                 'required' => false,
-            ))
-            ->add('address', 'address', array(
+            ])
+            ->add('address', AddressType::class, [
                 'required' => false,
-            ))
-            ->add('tel', 'tel', array(
+            ])
+            ->add('phone_number', PhoneNumberType::class, [
                 'required' => false,
-            ))
-            ->add('email', 'email', array(
-                'required' => true,
-                'constraints' => array(
+            ])
+            ->add('email', EmailType::class, [
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('contents', 'textarea', array(
-                'help' => 'form.contact.contents.help',
-                'constraints' => array(
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('contents', TextareaType::class, [
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ));
+                ],
+            ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'contact';
     }

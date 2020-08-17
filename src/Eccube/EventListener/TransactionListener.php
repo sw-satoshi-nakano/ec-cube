@@ -1,29 +1,22 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\EventListener;
 
-use Eccube\Application;
+use Doctrine\Dbal\Connection;
+use Doctrine\DBAL\TransactionIsolationLevel;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\GetResponseEvent;
 use Symfony\Component\HttpKernel\Event\GetResponseForExceptionEvent;
@@ -32,21 +25,37 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 /**
  * トランザクション制御のためのListener
- *
- * @package Eccube\EventListener
  */
 class TransactionListener implements EventSubscriberInterface
 {
-    private $app;
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $em;
 
     /**
-     * Constructor function.
-     *
-     * @param Application $app
+     * @var bool
      */
-    public function __construct(Application $app)
+    protected $isEnabled = true;
+
+    /**
+     * TransactionListener constructor.
+     *
+     * @param EntityManager $em
+     * @param bool $isEnabled
+     */
+    public function __construct(EntityManagerInterface $em, $isEnabled = true)
     {
-        $this->app = $app;
+        $this->em = $em;
+        $this->isEnabled = $isEnabled;
+    }
+
+    /**
+     * Disable transaction listener.
+     */
+    public function disable()
+    {
+        $this->isEnabled = false;
     }
 
     /**
@@ -56,17 +65,25 @@ class TransactionListener implements EventSubscriberInterface
      */
     public function onKernelRequest(GetResponseEvent $event)
     {
+        if (!$this->isEnabled) {
+            log_debug('Transaction Listener is disabled.');
+
+            return;
+        }
+
         if (!$event->isMasterRequest()) {
             return;
         }
 
-        $app = $this->app;
-        if (!$app->isTestMode()) {
-            $app['orm.em']->getConnection()->setAutoCommit(false);
-            $app['orm.em']->beginTransaction();
-        } else {
-            $this->app->log('TestCase to onKernelRequest of beginTransaction');
+        /** @var Connection $Connection */
+        $Connection = $this->em->getConnection();
+        if (!$Connection->isConnected()) {
+            $Connection->connect();
         }
+        $Connection->setAutoCommit(false);
+        $Connection->setTransactionIsolation(TransactionIsolationLevel::READ_COMMITTED);
+        $this->em->beginTransaction();
+        log_debug('Begin Transaction.');
     }
 
     /**
@@ -76,17 +93,21 @@ class TransactionListener implements EventSubscriberInterface
      */
     public function onKernelException(GetResponseForExceptionEvent $event)
     {
+        if (!$this->isEnabled) {
+            log_debug('Transaction Listener is disabled.');
+
+            return;
+        }
+
         if (!$event->isMasterRequest()) {
             return;
         }
 
-        $app = $this->app;
-        if (!$app->isTestMode()) {
-            if ($app['orm.em']->getConnection()->isTransactionActive()) {
-                $app['orm.em']->rollback();
-            }
+        if ($this->em->getConnection()->isTransactionActive()) {
+            $this->em->rollback();
+            log_debug('Rollback executed.');
         } else {
-            $this->app->log('TestCase to onKernelException of rollback');
+            log_debug('Transaction is not active. Rollback skipped.');
         }
     }
 
@@ -97,18 +118,21 @@ class TransactionListener implements EventSubscriberInterface
      */
     public function onKernelTerminate(PostResponseEvent $event)
     {
-        $app = $this->app;
+        if (!$this->isEnabled) {
+            log_debug('Transaction Listener is disabled.');
 
-        if (!$app->isTestMode()) {
-            if ($app['orm.em']->getConnection()->isTransactionActive()) {
-                if ($app['orm.em']->getConnection()->isRollbackOnly()) {
-                    $app['orm.em']->rollback();
-                } else {
-                    $app['orm.em']->commit();
-                }
+            return;
+        }
+        if ($this->em->getConnection()->isTransactionActive()) {
+            if ($this->em->getConnection()->isRollbackOnly()) {
+                $this->em->rollback();
+                log_debug('Rollback executed.');
+            } else {
+                $this->em->commit();
+                log_debug('Commit executed.');
             }
         } else {
-            $this->app->log('TestCase to onKernelTerminate of commit.');
+            log_debug('Transaction is not active. Rollback skipped.');
         }
     }
 
@@ -119,10 +143,10 @@ class TransactionListener implements EventSubscriberInterface
      */
     public static function getSubscribedEvents()
     {
-        return array(
+        return [
             KernelEvents::REQUEST => 'onKernelRequest',
             KernelEvents::EXCEPTION => 'onKernelException',
             KernelEvents::TERMINATE => 'onKernelTerminate',
-        );
+        ];
     }
 }

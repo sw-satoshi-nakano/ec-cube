@@ -1,41 +1,43 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type;
 
+use Eccube\Common\EccubeConfig;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Class RepeatedPasswordType
+ */
 class RepeatedPasswordType extends AbstractType
 {
     /**
-     * {@inheritdoc}
+     * @var EccubeConfig
      */
-    public function __construct($config = array('password_min_len' => 8, 'password_max_len' => '32'))
+    protected $eccubeConfig;
+
+    /**
+     * RepeatedPasswordType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -43,35 +45,37 @@ class RepeatedPasswordType extends AbstractType
      */
     public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'type' => 'text', // type password だと入力欄を空にされてしまうので、widgetで対応
+        $resolver->setDefaults([
+            'entry_type' => TextType::class, // type password だと入力欄を空にされてしまうので、widgetで対応
+            'invalid_message' => 'form_error.same_password',
             'required' => true,
             'error_bubbling' => false,
-            'invalid_message' => 'form.member.password.invalid',
-            'options' => array(
-                'constraints' => array(
+            'options' => [
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'min' => $this->config['password_min_len'],
-                        'max' => $this->config['password_max_len'],
-                    )),
-                    new Assert\Regex(array(
+                    new Assert\Length([
+                        'min' => $this->eccubeConfig['eccube_password_min_len'],
+                        'max' => $this->eccubeConfig['eccube_password_max_len'],
+                    ]),
+                    new Assert\Regex([
                         'pattern' => '/^[[:graph:][:space:]]+$/i',
-                        'message' => 'form.type.graph.invalid',
-                    )),
-                ),
-            ),
-            'first_options' => array(
-                'attr' => array(
-                    'placeholder' => '半角英数字記号'.$this->config['password_min_len'].'～'.$this->config['password_max_len'].'文字',
-                ),
-            ),
-            'second_options' => array(
-                'attr' => array(
-                    'placeholder' => 'form.member.repeated.confirm',
-                ),
-            ),
-        ));
+                        'message' => 'form_error.graph_only',
+                    ]),
+                ],
+            ],
+            'first_options' => [
+                'attr' => [
+                    'placeholder' => trans('common.password_sample', [
+                        '%min%' => $this->eccubeConfig['eccube_password_min_len'],
+                        '%max%' => $this->eccubeConfig['eccube_password_max_len'], ]),
+                ],
+            ],
+            'second_options' => [
+                'attr' => [
+                    'placeholder' => 'common.repeated_confirm',
+                ],
+            ],
+        ]);
     }
 
     /**
@@ -79,13 +83,13 @@ class RepeatedPasswordType extends AbstractType
      */
     public function getParent()
     {
-        return 'repeated';
+        return RepeatedType::class;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'repeated_password';
     }

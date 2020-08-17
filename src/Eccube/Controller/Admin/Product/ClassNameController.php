@@ -1,145 +1,187 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Product;
 
-use Eccube\Application;
 use Eccube\Controller\AbstractController;
+use Eccube\Entity\ClassName;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Form\Type\Admin\ClassNameType;
+use Eccube\Repository\ClassNameRepository;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Annotation\Route;
 
 class ClassNameController extends AbstractController
 {
-    public function index(Application $app, Request $request, $id = null)
+    /**
+     * @var ClassNameRepository
+     */
+    protected $classNameRepository;
+
+    /**
+     * ClassNameController constructor.
+     *
+     * @param ClassNameRepository $classNameRepository
+     */
+    public function __construct(ClassNameRepository $classNameRepository)
+    {
+        $this->classNameRepository = $classNameRepository;
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/product/class_name", name="admin_product_class_name")
+     * @Route("/%eccube_admin_route%/product/class_name/{id}/edit", requirements={"id" = "\d+"}, name="admin_product_class_name_edit")
+     * @Template("@admin/Product/class_name.twig")
+     */
+    public function index(Request $request, $id = null)
     {
         if ($id) {
-            $TargetClassName = $app['eccube.repository.class_name']->find($id);
+            $TargetClassName = $this->classNameRepository->find($id);
             if (!$TargetClassName) {
-                throw new NotFoundHttpException('商品規格が存在しません');
+                throw new NotFoundHttpException();
             }
         } else {
             $TargetClassName = new \Eccube\Entity\ClassName();
         }
 
-        $builder = $app['form.factory']
-            ->createBuilder('admin_class_name', $TargetClassName);
+        $builder = $this->formFactory
+            ->createBuilder(ClassNameType::class, $TargetClassName);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
                 'TargetClassName' => $TargetClassName,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_INDEX_INITIALIZE, $event);
+
+        $ClassNames = $this->classNameRepository->getList();
+
+        /**
+         * 編集用フォーム
+         */
+        $forms = [];
+        foreach ($ClassNames as $ClassName) {
+            $id = $ClassName->getId();
+            $forms[$id] = $this->formFactory->createNamed('class_name_'.$id, ClassNameType::class, $ClassName);
+        }
 
         $form = $builder->getForm();
 
         if ($request->getMethod() === 'POST') {
             $form->handleRequest($request);
-            if ($form->isValid()) {
-                log_info('商品規格登録開始', array($id));
-                $status = $app['eccube.repository.class_name']->save($TargetClassName);
+            if ($form->isSubmitted() && $form->isValid()) {
+                log_info('商品規格登録開始', [$id]);
 
-                if ($status) {
-                    log_info('商品規格登録完了', array($id));
+                $this->classNameRepository->save($TargetClassName);
 
-                    $event = new EventArgs(
-                        array(
-                            'form' => $form,
-                            'TargetClassName' => $TargetClassName,
-                        ),
-                        $request
-                    );
-                    $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_INDEX_COMPLETE, $event);
+                log_info('商品規格登録完了', [$id]);
 
-                    $app->addSuccess('admin.class_name.save.complete', 'admin');
+                $event = new EventArgs(
+                    [
+                        'form' => $form,
+                        'TargetClassName' => $TargetClassName,
+                    ],
+                    $request
+                );
+                $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_INDEX_COMPLETE, $event);
 
-                    return $app->redirect($app->url('admin_product_class_name'));
-                } else {
-                    log_info('商品規格登録エラー', array($id));
-                    $app->addError('admin.class_name.save.error', 'admin');
+                $this->addSuccess('admin.common.save_complete', 'admin');
+
+                return $this->redirectToRoute('admin_product_class_name');
+            }
+
+            /*
+             * 編集処理
+             */
+            foreach ($forms as $editForm) {
+                $editForm->handleRequest($request);
+                if ($editForm->isSubmitted() && $editForm->isValid()) {
+                    $this->classNameRepository->save($editForm->getData());
+
+                    $this->addSuccess('admin.common.save_complete', 'admin');
+
+                    return $this->redirectToRoute('admin_product_class_name');
                 }
             }
         }
+        $formViews = [];
+        foreach ($forms as $key => $value) {
+            $formViews[$key] = $value->createView();
+        }
 
-        $ClassNames = $app['eccube.repository.class_name']->getList();
-
-        return $app->render('Product/class_name.twig', array(
+        return [
             'form' => $form->createView(),
             'ClassNames' => $ClassNames,
             'TargetClassName' => $TargetClassName,
-        ));
+            'forms' => $formViews,
+        ];
     }
 
-    public function delete(Application $app, Request $request, $id)
+    /**
+     * @Route("/%eccube_admin_route%/product/class_name/{id}/delete", requirements={"id" = "\d+"}, name="admin_product_class_name_delete", methods={"DELETE"})
+     */
+    public function delete(Request $request, ClassName $ClassName)
     {
-        $this->isTokenValid($app);
+        $this->isTokenValid();
 
-        $TargetClassName = $app['eccube.repository.class_name']->find($id);
-        if (!$TargetClassName) {
-            $app->deleteMessage();
-            return $app->redirect($app->url('admin_product_class_name'));
+        log_info('商品規格削除開始', [$ClassName->getId()]);
+
+        try {
+            $this->classNameRepository->delete($ClassName);
+
+            $event = new EventArgs(['ClassName' => $ClassName], $request);
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_DELETE_COMPLETE, $event);
+
+            $this->addSuccess('admin.common.delete_complete', 'admin');
+
+            log_info('商品規格削除完了', [$ClassName->getId()]);
+        } catch (\Exception $e) {
+            $message = trans('admin.common.delete_error_foreign_key', ['%name%' => $ClassName->getName()]);
+            $this->addError($message, 'admin');
+
+            log_error('商品規格削除エラー', [$ClassName->getId(), $e]);
         }
 
-        log_info('商品規格削除開始', array($id));
-
-        $status = $app['eccube.repository.class_name']->delete($TargetClassName);
-
-        if ($status === true) {
-            log_info('商品規格削除完了', array($id));
-
-            $event = new EventArgs(
-                array(
-                    'TargetClassName' => $TargetClassName,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_PRODUCT_CLASS_NAME_DELETE_COMPLETE, $event);
-
-            $app->addSuccess('admin.class_name.delete.complete', 'admin');
-        } else {
-            $app->addError('admin.class_name.delete.error', 'admin');
-        }
-
-        return $app->redirect($app->url('admin_product_class_name'));
+        return $this->redirectToRoute('admin_product_class_name');
     }
 
-    public function moveRank(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/product/class_name/sort_no/move", name="admin_product_class_name_sort_no_move", methods={"POST"})
+     */
+    public function moveSortNo(Request $request)
     {
-        if ($request->isXmlHttpRequest()) {
-            $ranks = $request->request->all();
-            foreach ($ranks as $classNameId => $rank) {
-                $ClassName = $app['eccube.repository.class_name']
+        if (!$request->isXmlHttpRequest()) {
+            throw new BadRequestHttpException();
+        }
+
+        if ($this->isTokenValid()) {
+            $sortNos = $request->request->all();
+            foreach ($sortNos as $classNameId => $sortNo) {
+                $ClassName = $this->classNameRepository
                     ->find($classNameId);
-                $ClassName->setRank($rank);
-                $app['orm.em']->persist($ClassName);
+                $ClassName->setSortNo($sortNo);
+                $this->entityManager->persist($ClassName);
             }
-            $app['orm.em']->flush();
+            $this->entityManager->flush();
+
+            return new Response();
         }
-        return true;
     }
 }

@@ -1,31 +1,21 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Doctrine\Filter;
 
-use Doctrine\ORM\Query\Filter\SQLFilter;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Query\Filter\SQLFilter;
+use Eccube\Entity\Master\OrderStatus;
 
 class OrderStatusFilter extends SQLFilter
 {
@@ -33,12 +23,12 @@ class OrderStatusFilter extends SQLFilter
     {
         // 決済処理中/購入処理中を除く.
         if ($targetEntity->reflClass->getName() === 'Eccube\Entity\Order') {
-            return $targetTableAlias . '.status <> 7 AND ' . $targetTableAlias . '.status <> 8';
+            return $targetTableAlias.'.order_status_id <> '.OrderStatus::PENDING.' AND '.$targetTableAlias.'.order_status_id <> '.OrderStatus::PROCESSING;
         }
 
         // 決済処理中/購入処理中を除く.
         if ($targetEntity->reflClass->getName() === 'Eccube\Entity\Master\OrderStatus') {
-            return $targetTableAlias . '.id <> 7 AND ' . $targetTableAlias . '.id <> 8';
+            return $targetTableAlias.'.id <> '.OrderStatus::PENDING.' AND '.$targetTableAlias.'.id <> '.OrderStatus::PROCESSING;
         }
 
         return '';

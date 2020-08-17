@@ -1,142 +1,175 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Setting\Shop;
 
-use Eccube\Application;
-use Eccube\Common\Constant;
 use Eccube\Controller\AbstractController;
 use Eccube\Entity\Master\CsvType;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Repository\CsvRepository;
+use Eccube\Repository\Master\CsvTypeRepository;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Class CsvController
+ */
 class CsvController extends AbstractController
 {
-    public function index(Application $app, Request $request, $id = CsvType::CSV_TYPE_ORDER)
+    /**
+     * @var CsvRepository
+     */
+    protected $csvRepository;
+
+    /**
+     * @var CsvTypeRepository
+     */
+    protected $csvTypeRepository;
+
+    /**
+     * CsvController constructor.
+     *
+     * @param CsvRepository $csvRepository
+     * @param CsvTypeRepository $csvTypeRepository
+     */
+    public function __construct(CsvRepository $csvRepository, CsvTypeRepository $csvTypeRepository)
     {
+        $this->csvRepository = $csvRepository;
+        $this->csvTypeRepository = $csvTypeRepository;
+    }
 
-        $CsvType = $app['eccube.repository.master.csv_type']->find($id);
-        if (is_null($CsvType)) {
-            throw new NotFoundHttpException();
-        }
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/csv/{id}",
+     *     requirements={"id" = "\d+"},
+     *     defaults={"id" = CsvType::CSV_TYPE_ORDER},
+     *     name="admin_setting_shop_csv"
+     * )
+     * @Template("@admin/Setting/Shop/csv.twig")
+     */
+    public function index(Request $request, CsvType $CsvType)
+    {
+        $builder = $this->createFormBuilder();
 
-        $builder = $app->form();
+        $builder->add(
+            'csv_type',
+            \Eccube\Form\Type\Master\CsvType::class,
+            [
+                'label' => 'admin.setting.shop.csv.csv_columns',
+                'required' => true,
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+                'data' => $CsvType,
+            ]
+        );
 
-        $builder->add('csv_type', 'csv_type', array(
-            'label' => 'CSV出力項目',
-            'required' => true,
-            'constraints' => array(
-                new Assert\NotBlank(),
-            ),
-            'data' => $CsvType,
-        ));
+        $CsvNotOutput = $this->csvRepository->findBy(
+            ['CsvType' => $CsvType, 'enabled' => false],
+            ['sort_no' => 'ASC']
+        );
 
-        $CsvNotOutput = $app['eccube.repository.csv']->findBy(array('CsvType' => $CsvType, 'enable_flg' => Constant::DISABLED), array('rank' => 'ASC'));
+        $builder->add(
+            'csv_not_output',
+            EntityType::class,
+            [
+                'class' => 'Eccube\Entity\Csv',
+                'choice_label' => 'disp_name',
+                'required' => false,
+                'expanded' => false,
+                'multiple' => true,
+                'choices' => $CsvNotOutput,
+            ]
+        );
 
-        $builder->add('csv_not_output', 'entity', array(
-            'class' => 'Eccube\Entity\Csv',
-            'property' => 'disp_name',
-            'required' => false,
-            'expanded' => false,
-            'multiple' => true,
-            'choices' => $CsvNotOutput,
-        ));
+        $CsvOutput = $this->csvRepository->findBy(
+            ['CsvType' => $CsvType, 'enabled' => true],
+            ['sort_no' => 'ASC']
+        );
 
-        $CsvOutput = $app['eccube.repository.csv']->findBy(array('CsvType' => $CsvType, 'enable_flg' => Constant::ENABLED), array('rank' => 'ASC'));
-
-        $builder->add('csv_output', 'entity', array(
-            'class' => 'Eccube\Entity\Csv',
-            'property' => 'disp_name',
-            'required' => false,
-            'expanded' => false,
-            'multiple' => true,
-            'choices' => $CsvOutput,
-        ));
+        $builder->add(
+            'csv_output',
+            EntityType::class,
+            [
+                'class' => 'Eccube\Entity\Csv',
+                'choice_label' => 'disp_name',
+                'required' => false,
+                'expanded' => false,
+                'multiple' => true,
+                'choices' => $CsvOutput,
+            ]
+        );
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
                 'CsvOutput' => $CsvOutput,
                 'CsvType' => $CsvType,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_CSV_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_CSV_INDEX_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
-        if ('POST' === $request->getMethod()) {
-
+        // csv_output/csv_not_outputのチェックに引っかかるため, tokenチェックは個別に行う
+        if ('POST' === $request->getMethod() && $this->isTokenValid()) {
             $data = $request->get('form');
             if (isset($data['csv_not_output'])) {
                 $Csvs = $data['csv_not_output'];
-                $rank = 1;
+                $sortNo = 1;
                 foreach ($Csvs as $csv) {
-                    $c = $app['eccube.repository.csv']->find($csv);
-                    $c->setRank($rank);
-                    $c->setEnableFlg(Constant::DISABLED);
-                    $rank++;
+                    $c = $this->csvRepository->find($csv);
+                    $c->setSortNo($sortNo);
+                    $c->setEnabled(false);
+                    $sortNo++;
                 }
             }
 
             if (isset($data['csv_output'])) {
                 $Csvs = $data['csv_output'];
-                $rank = 1;
+                $sortNo = 1;
                 foreach ($Csvs as $csv) {
-                    $c = $app['eccube.repository.csv']->find($csv);
-                    $c->setRank($rank);
-                    $c->setEnableFlg(Constant::ENABLED);
-                    $rank++;
+                    $c = $this->csvRepository->find($csv);
+                    $c->setSortNo($sortNo);
+                    $c->setEnabled(true);
+                    $sortNo++;
                 }
             }
 
-            $app['orm.em']->flush();
+            $this->entityManager->flush();
 
             $event = new EventArgs(
-                array(
+                [
                     'form' => $form,
                     'CsvOutput' => $CsvOutput,
                     'CsvType' => $CsvType,
-                ),
+                ],
                 $request
             );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_CSV_INDEX_COMPLETE, $event);
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_CSV_INDEX_COMPLETE, $event);
 
-            $app->addSuccess('admin.shop.csv.save.complete', 'admin');
+            $this->addSuccess('admin.common.save_complete', 'admin');
 
-            return $app->redirect($app->url('admin_setting_shop_csv', array('id' => $id)));
+            return $this->redirectToRoute('admin_setting_shop_csv', ['id' => $CsvType->getId()]);
         }
 
-
-        return $app->render('Setting/Shop/csv.twig', array(
+        return [
             'form' => $form->createView(),
-            'id' => $id,
-        ));
-
+            'id' => $CsvType->getId(),
+        ];
     }
-
 }

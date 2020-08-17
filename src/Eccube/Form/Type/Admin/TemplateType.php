@@ -1,42 +1,36 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
-use Eccube\Form\DataTransformer;
+use Eccube\Common\EccubeConfig;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class TemplateType extends AbstractType
 {
-    private $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($config)
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -44,60 +38,55 @@ class TemplateType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $config = $this->config;
-
         $builder
-            ->add('code', 'text', array(
-                'label' => 'テンプレートコード',
+            ->add('code', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Regex(array(
-                        'pattern' => "/^[0-9a-zA-Z]+$/",
-                    )),
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    )),
-                ),
-            ))
-            ->add('name', 'text', array(
-                'label' => 'テンプレート名',
+                    new Assert\Regex([
+                        'pattern' => '/^[0-9a-zA-Z]+$/',
+                    ]),
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('name', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    )),
-                ),
-            ))
-            ->add('file', 'file', array(
-                'label' => 'テンプレートファイル',
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('file', FileType::class, [
                 'mapped' => false,
                 'required' => true,
-                'constraints' => array(
-                    new Assert\NotBlank(array('message' => 'ファイルを選択してください。')),
-                    new Assert\File(array(
-                        'mimeTypes' => array('application/zip', 'application/x-tar', 'application/x-gzip'),
-                        'mimeTypesMessage' => 'zipファイル、tarファイル、tar.gzファイルのいずれかをアップロードしてください。',
-                    )),
-                ),
-            ));
+                'constraints' => [
+                    new Assert\NotBlank(['message' => trans('admin.common.select')]),
+                    new Assert\File([
+                        'mimeTypes' => ['application/zip', 'application/x-tar', 'application/x-gzip', 'application/gzip'],
+                        'mimeTypesMessage' => trans('admin.store.template.invalid_upload_file'),
+                    ]),
+                ],
+            ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
+        $resolver->setDefaults([
             'data_class' => 'Eccube\Entity\Template',
-        ));
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_template';
     }

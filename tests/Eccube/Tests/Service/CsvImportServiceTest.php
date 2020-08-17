@@ -1,5 +1,16 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Service;
 
 use Eccube\Service\CsvImportService;
@@ -27,7 +38,7 @@ use Eccube\Service\CsvImportService;
  *
  * CsvReaserTest より移植
  *
- * @link https://github.com/ddeboer/data-import/blob/master/tests/Reader/CsvReaderTest.php
+ * @see https://github.com/ddeboer/data-import/blob/master/tests/Reader/CsvReaderTest.php
  */
 class CsvImportServiceTest extends AbstractServiceTestCase
 {
@@ -37,12 +48,7 @@ class CsvImportServiceTest extends AbstractServiceTestCase
         $CsvImportService = new CsvImportService($file);
         $CsvImportService->setHeaderRowNumber(0);
 
-        $this->assertEquals(
-            array(
-                'id', 'number', 'description'
-            ),
-            $CsvImportService->getFields()
-        );
+        $this->assertEquals(['id', 'number', 'description'], $CsvImportService->getFields());
 
         foreach ($CsvImportService as $row) {
             $this->assertNotNull($row['id']);
@@ -51,11 +57,11 @@ class CsvImportServiceTest extends AbstractServiceTestCase
         }
 
         $this->assertEquals(
-            array(
-                'id'        => 6,
-                'number'    => '456',
-                'description' => 'Another description'
-            ),
+            [
+                'id' => 6,
+                'number' => '456',
+                'description' => 'Another description',
+            ],
             $CsvImportService->getRow(2)
         );
     }
@@ -72,7 +78,7 @@ class CsvImportServiceTest extends AbstractServiceTestCase
     {
         $file = new \SplFileObject(__DIR__.'/../../../Fixtures/data_no_column_headers.csv');
         $CsvImportService = new CsvImportService($file);
-        $CsvImportService->setColumnHeaders(array('id', 'number', 'description'));
+        $CsvImportService->setColumnHeaders(['id', 'number', 'description']);
 
         foreach ($CsvImportService as $row) {
             $this->assertNotNull($row['id']);
@@ -85,7 +91,7 @@ class CsvImportServiceTest extends AbstractServiceTestCase
     {
         $file = new \SplFileObject(__DIR__.'/../../../Fixtures/data_blank_lines.csv');
         $CsvImportService = new CsvImportService($file);
-        $CsvImportService->setColumnHeaders(array('id', 'number', 'description'));
+        $CsvImportService->setColumnHeaders(['id', 'number', 'description']);
 
         foreach ($CsvImportService as $row) {
             $this->assertNotNull($row['id']);
@@ -137,12 +143,12 @@ class CsvImportServiceTest extends AbstractServiceTestCase
 
         $this->assertCount(4, $reader->getColumnHeaders());
 
-        $expected = array(
-            'id'          => '50',
-            'description' => array('First', 'Second', 'Third'),
-            'details'     => array('Details1', 'Details2'),
-            'last'        => 'Last one'
-        );
+        $expected = [
+            'id' => '50',
+            'description' => ['First', 'Second', 'Third'],
+            'details' => ['Details1', 'Details2'],
+            'last' => 'Last one',
+        ];
         $this->assertEquals($expected, $current);
     }
 

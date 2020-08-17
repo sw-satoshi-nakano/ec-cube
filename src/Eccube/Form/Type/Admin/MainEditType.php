@@ -1,43 +1,69 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\Layout;
+use Eccube\Entity\Master\DeviceType;
+use Eccube\Entity\Page;
+use Eccube\Form\Validator\TwigLint;
+use Eccube\Repository\Master\DeviceTypeRepository;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class MainEditType extends AbstractType
 {
-    public $app;
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
 
-    public function __construct(\Silex\Application $app)
-    {
-        $this->app = $app;
+    /**
+     * @var DeviceTypeRepository
+     */
+    protected $deviceTypeRepository;
+
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
+
+    /**
+     * MainEditType constructor.
+     *
+     * @param EntityManagerInterface $entityManager
+     * @param DeviceTypeRepository $deviceTypeRepository
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(
+        EntityManagerInterface $entityManager,
+        DeviceTypeRepository $deviceTypeRepository,
+        EccubeConfig $eccubeConfig
+    ) {
+        $this->entityManager = $entityManager;
+        $this->deviceTypeRepository = $deviceTypeRepository;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -45,14 +71,12 @@ class MainEditType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $app = $this->app;
-
         $builder
-            ->add('name', 'text', array(
-                'label' => '名称',
+            ->add('name', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
+<<<<<<< HEAD
                     new Assert\Length(array(
                         'max' => $app['config']['sltext_len'],
                     ))
@@ -60,39 +84,42 @@ class MainEditType extends AbstractType
             ))
             ->add('url', 'text', array(
                 'label' => 'URL',
+=======
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('url', TextType::class, [
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $app['config']['stext_len'],
-                    )),
-                    new Assert\Regex(array(
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                    new Assert\Regex([
                         'pattern' => '/^([0-9a-zA-Z_\-]+\/?)+(?<!\/)$/',
-                    )),
-                )
-            ))
-            ->add('file_name', 'text', array(
-                'label' => 'ファイル名',
+                    ]),
+                ],
+            ])
+            ->add('file_name', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $app['config']['stext_len'],
-                    )),
-                    new Assert\Regex(array(
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                    new Assert\Regex([
                         'pattern' => '/^([0-9a-zA-Z_\-]+\/?)+$/',
-                    )),
-                )
-            ))
-            ->add('tpl_data', 'textarea', array(
+                    ]),
+                ],
+            ])
+            ->add('tpl_data', TextareaType::class, [
                 'label' => false,
                 'mapped' => false,
-                'required' => true,
-                'constraints' => array()
-            ))
-            ->add('author', 'text', array(
-                'label' => 'author',
                 'required' => false,
+<<<<<<< HEAD
                 'constraints' => array(
                     new Assert\Length(array(
                         'max' => $app['config']['sltext_len'],
@@ -127,46 +154,168 @@ class MainEditType extends AbstractType
                 )
             ))->add('meta_tags', 'textarea', array(
                 'label' => '追加metaタグ',
+=======
+                'constraints' => [
+                    new Assert\NotBlank(),
+                    new TwigLint(),
+                ],
+            ])
+            ->add('author', TextType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $app['config']['lltext_len'],
-                    ))
-                )
-            ))
-            ->add('DeviceType', 'entity', array(
-                'class' => 'Eccube\Entity\Master\DeviceType',
-                'property' => 'id',
-            ))
-            ->add('id', 'hidden')
-            ->addEventListener(FormEvents::POST_SUBMIT, function($event) use ($app) {
-                $form = $event->getForm();
-                $url = $form['url']->getData();
-                $DeviceType = $form['DeviceType']->getData();
-                $page_id = $form['id']->getData();
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('description', TextType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('keyword', TextType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('meta_robots', TextType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])->add('meta_tags', TextAreaType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_lltext_len'],
+                    ]),
+                ],
+            ])
+            ->add('PcLayout', EntityType::class, [
+                'mapped' => false,
+                'placeholder' => '---',
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
+                'required' => false,
+                'class' => Layout::class,
+                'query_builder' => function (EntityRepository $er) {
+                    $DeviceType = $this->deviceTypeRepository->find(DeviceType::DEVICE_TYPE_PC);
 
-                $qb = $app['orm.em']->createQueryBuilder();
-                $qb->select('p')
-                    ->from('Eccube\\Entity\\PageLayout', 'p')
+                    return $er->createQueryBuilder('l')
+                        ->where('l.id != :DefaultLayoutPreviewPage')
+                        ->andWhere('l.DeviceType = :DeviceType')
+                        ->setParameter('DeviceType', $DeviceType)
+                        ->setParameter('DefaultLayoutPreviewPage', Layout::DEFAULT_LAYOUT_PREVIEW_PAGE)
+                        ->orderBy('l.id', 'DESC');
+                },
+            ])
+            ->add('SpLayout', EntityType::class, [
+                'mapped' => false,
+                'placeholder' => '---',
+                'required' => false,
+                'class' => Layout::class,
+                'query_builder' => function (EntityRepository $er) {
+                    $DeviceType = $this->deviceTypeRepository->find(DeviceType::DEVICE_TYPE_MB);
+
+                    return $er->createQueryBuilder('l')
+                        ->where('l.id != :DefaultLayoutPreviewPage')
+                        ->andWhere('l.DeviceType = :DeviceType')
+                        ->setParameter('DeviceType', $DeviceType)
+                        ->setParameter('DefaultLayoutPreviewPage', Layout::DEFAULT_LAYOUT_PREVIEW_PAGE)
+                        ->orderBy('l.id', 'DESC');
+                },
+            ])
+            ->addEventListener(FormEvents::POST_SET_DATA, function (FormEvent $event) {
+                $Page = $event->getData();
+                if (is_null($Page->getId())) {
+                    return;
+                }
+                $form = $event->getForm();
+                $Layouts = $Page->getLayouts();
+                foreach ($Layouts as $Layout) {
+                    if ($Layout->getDeviceType()->getId() == DeviceType::DEVICE_TYPE_PC) {
+                        $form['PcLayout']->setData($Layout);
+                    }
+                    if ($Layout->getDeviceType()->getId() == DeviceType::DEVICE_TYPE_MB) {
+                        $form['SpLayout']->setData($Layout);
+                    }
+                }
+            })
+            ->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+                $form = $event->getForm();
+
+                /** @var Page $Page */
+                $Page = $event->getData();
+
+                // urlの重複チェック
+                $qb = $this->entityManager->createQueryBuilder();
+                $qb->select('count(p)')
+                    ->from('Eccube\\Entity\\Page', 'p')
                     ->where('p.url = :url')
-                    ->setParameter('url', $url)
-                    ->andWhere('p.DeviceType = :DeviceType')
-                    ->setParameter('DeviceType', $DeviceType)
-                ;
-                if (is_null($page_id)) {
-                    $qb
-                        ->andWhere('p.id IS NOT NULL');
-                } else {
+                    ->setParameter('url', $Page->getUrl());
+
+                // 更新の場合は自身のデータを重複チェックから除外する
+                if (!is_null($Page->getId())) {
                     $qb
                         ->andWhere('p.id <> :page_id')
-                        ->setParameter('page_id', $page_id);
+                        ->setParameter('page_id', $Page->getId());
                 }
 
-                $PageLayout = $qb
-                    ->getQuery()
-                    ->getResult();
-                if (count($PageLayout) > 0) {
-                    $form['url']->addError(new FormError('※ 同じURLのデータが存在しています。別のURLを入力してください。'));
+                $count = $qb->getQuery()->getSingleScalarResult();
+                if ($count > 0) {
+                    $form['url']->addError(new FormError(trans('admin.content.page_url_exists')));
+                }
+
+                // Page::EDIT_TYPE_USER ファイルの重複チェック
+                $qb = $this->entityManager->createQueryBuilder();
+                $qb->select('count(p)')
+                    ->from('Eccube\\Entity\\Page', 'p')
+                    ->where('p.file_name = :file_name')
+                    ->andWhere('p.edit_type = :edit_type')
+                    ->setParameter('file_name', $Page->getFileName())
+                    ->setParameter('edit_type', Page::EDIT_TYPE_USER);
+
+                // 更新の場合は自身のデータを重複チェックから除外する
+                if (!is_null($Page->getId())) {
+                    $qb
+                        ->andWhere('p.id <> :page_id')
+                        ->setParameter('page_id', $Page->getId());
+                }
+
+                $count = $qb->getQuery()->getSingleScalarResult();
+                if ($count > 0) {
+                    $form['file_name']->addError(new FormError(trans('admin.content.page_file_name_exists')));
+                }
+
+                // Page::EDIT_TYPE_USER を修正した場合は、 Page::EDIT_TYPE_DEFAULT とファイルの重複チェック
+                if (Page::EDIT_TYPE_USER === $Page->getEditType()) {
+                    $qb = $this->entityManager->createQueryBuilder();
+                    $qb->select('count(p)')
+                        ->from('Eccube\\Entity\\Page', 'p')
+                        ->where('p.file_name = :file_name')
+                        ->andWhere('p.edit_type = :edit_type')
+                        ->setParameter('file_name', $Page->getFileName())
+                        ->setParameter('edit_type', Page::EDIT_TYPE_DEFAULT);
+
+                    // 更新の場合は自身のデータを重複チェックから除外する
+                    if (!is_null($Page->getId())) {
+                        $qb
+                            ->andWhere('p.id <> :page_id')
+                            ->setParameter('page_id', $Page->getId());
+                    }
+
+                    $count = $qb->getQuery()->getSingleScalarResult();
+
+                    if ($count > 0) {
+                        $form['file_name']->addError(new FormError(trans('admin.content.page_file_name_exists')));
+                    }
                 }
             });
     }
@@ -174,17 +323,17 @@ class MainEditType extends AbstractType
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'data_class' => 'Eccube\Entity\PageLayout',
-        ));
+        $resolver->setDefaults([
+            'data_class' => Page::class,
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'main_edit';
     }

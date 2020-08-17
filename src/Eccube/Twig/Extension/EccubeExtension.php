@@ -1,84 +1,86 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Twig\Extension;
 
-use Eccube\Common\Constant;
-use Eccube\Entity\Master\Disp;
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\Master\ProductStatus;
 use Eccube\Entity\Product;
-use Eccube\Util\Str;
-use Silex\Application;
+use Eccube\Entity\ProductClass;
+use Eccube\Repository\ProductRepository;
+use Eccube\Util\StringUtil;
 use Symfony\Component\Form\FormView;
-use Symfony\Component\Routing\Exception\RouteNotFoundException;
+use Symfony\Component\Intl\Intl;
+use Twig\Extension\AbstractExtension;
+use Twig\TwigFilter;
+use Twig\TwigFunction;
 
-class EccubeExtension extends \Twig_Extension
+class EccubeExtension extends AbstractExtension
 {
-    private $app;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct(Application $app)
+    /**
+     * @var ProductRepository
+     */
+    private $productRepository;
+
+    /**
+     * EccubeExtension constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     * @param ProductRepository $productRepository
+     */
+    public function __construct(EccubeConfig $eccubeConfig, ProductRepository $productRepository)
     {
-        $this->app = $app;
+        $this->eccubeConfig = $eccubeConfig;
+        $this->productRepository = $productRepository;
     }
 
     /**
      * Returns a list of functions to add to the existing list.
      *
-     * @return array An array of functions
+     * @return TwigFunction[] An array of functions
      */
     public function getFunctions()
     {
-        $RoutingExtension = $this->app['twig']->getExtension('routing');
-
-        return array(
-            new \Twig_SimpleFunction('calc_inc_tax', array($this, 'getCalcIncTax')),
-            new \Twig_SimpleFunction('active_menus', array($this, 'getActiveMenus')),
-            new \Twig_SimpleFunction('csrf_token_for_anchor', array($this, 'getCsrfTokenForAnchor'), array('is_safe' => array('all'))),
-            // Override: \Symfony\Bridge\Twig\Extension\RoutingExtension::url
-            new \Twig_SimpleFunction('url', array($this, 'getUrl'), array('is_safe_callback' => array($RoutingExtension, 'isUrlGenerationSafe'))),
-            // Override: \Symfony\Bridge\Twig\Extension\RoutingExtension::path
-            new \Twig_SimpleFunction('path', array($this, 'getPath'), array('is_safe_callback' => array($RoutingExtension, 'isUrlGenerationSafe'))),
-            new \Twig_SimpleFunction('is_object', array($this, 'isObject')),
-            new \Twig_SimpleFunction('get_product', array($this, 'getProduct')),
-            new \Twig_SimpleFunction('php_*', array($this, 'getPhpFunctions'), array('pre_escape' => 'html', 'is_safe' => array('html'))),
-            new \Twig_SimpleFunction('has_errors', array($this, 'hasErrors')),
-        );
+        return [
+            new TwigFunction('has_errors', [$this, 'hasErrors']),
+            new TwigFunction('active_menus', [$this, 'getActiveMenus']),
+            new TwigFunction('class_categories_as_json', [$this, 'getClassCategoriesAsJson']),
+            new TwigFunction('product', [$this, 'getProduct']),
+            new TwigFunction('php_*', [$this, 'getPhpFunctions'], ['pre_escape' => 'html', 'is_safe' => ['html']]),
+            new TwigFunction('currency_symbol', [$this, 'getCurrencySymbol']),
+        ];
     }
 
     /**
      * Returns a list of filters.
      *
-     * @return array
+     * @return TwigFilter[]
      */
     public function getFilters()
     {
-        return array(
-            new \Twig_SimpleFilter('no_image_product', array($this, 'getNoImageProduct')),
-            new \Twig_SimpleFilter('date_format', array($this, 'getDateFormatFilter')),
-            new \Twig_SimpleFilter('price', array($this, 'getPriceFilter')),
-            new \Twig_SimpleFilter('ellipsis', array($this, 'getEllipsis')),
-            new \Twig_SimpleFilter('time_ago', array($this, 'getTimeAgo')),
-        );
+        return [
+            new TwigFilter('no_image_product', [$this, 'getNoImageProduct']),
+            new TwigFilter('date_format', [$this, 'getDateFormatFilter']),
+            new TwigFilter('price', [$this, 'getPriceFilter']),
+            new TwigFilter('ellipsis', [$this, 'getEllipsis']),
+            new TwigFilter('time_ago', [$this, 'getTimeAgo']),
+            new TwigFilter('file_ext_icon', [$this, 'getExtensionIcon'], ['is_safe' => ['html']]),
+        ];
     }
 
     /**
@@ -94,20 +96,11 @@ class EccubeExtension extends \Twig_Extension
     /**
      * Name of this extension
      *
-     * @return string
-     */
-    public function getCalcIncTax($price, $tax_rate, $tax_rule)
-    {
-        return $price + $this->app['eccube.service.tax_rule']->calcTax($price, $tax_rate, $tax_rule);
-    }
-
-    /**
-     * Name of this extension
-     *
      * @param array $menus
+     *
      * @return array
      */
-    public function getActiveMenus($menus = array())
+    public function getActiveMenus($menus = [])
     {
         $count = count($menus);
         for ($i = $count; $i <= 2; $i++) {
@@ -118,72 +111,84 @@ class EccubeExtension extends \Twig_Extension
     }
 
     /**
+     * return No Image filename
+     *
+     * @return string
+     */
+    public function getNoImageProduct($image)
+    {
+        return empty($image) ? 'no_image_product.png' : $image;
+    }
+
+    /**
      * Name of this extension
      *
      * @return string
      */
-    public function getCsrfTokenForAnchor()
+    public function getDateFormatFilter($date, $value = '', $format = 'Y/m/d')
     {
-        $token = $this->app['form.csrf_provider']->getToken(Constant::TOKEN_NAME)->getValue();
-
-        return 'token-for-anchor=\''.$token.'\'';
-    }
-
-    /**
-     * bind から URL へ変換します。
-     * \Symfony\Bridge\Twig\Extension\RoutingExtension::getPath の処理を拡張し、
-     * RouteNotFoundException 発生時に E_USER_WARNING を発生させ、
-     * 文字列 "/404?bind={bind}" を返します。
-     *
-     * @param string $name
-     * @param array $parameters
-     * @param boolean $relative
-     * @return string URL
-     */
-    public function getPath($name, $parameters = array(), $relative = false)
-    {
-        $RoutingExtension = $this->app['twig']->getExtension('routing');
-        try {
-            return $RoutingExtension->getPath($name, $parameters, $relative);
-        } catch (RouteNotFoundException $e) {
-            trigger_error($e->getMessage(), E_USER_WARNING);
+        if (is_null($date)) {
+            return $value;
+        } else {
+            return $date->format($format);
         }
-
-        return $RoutingExtension->getPath('homepage').'404?bind='.$name;
     }
 
     /**
-     * bind から URL へ変換します。
-     * \Symfony\Bridge\Twig\Extension\RoutingExtension::getUrl の処理を拡張し、
-     * RouteNotFoundException 発生時に E_USER_WARNING を発生させ、
-     * 文字列 "/404?bind={bind}" を返します。
+     * Name of this extension
      *
-     * @param string $name
-     * @param array $parameters
-     * @param boolean $schemeRelative
-     * @return string URL
+     * @return string
      */
-    public function getUrl($name, $parameters = array(), $schemeRelative = false)
+    public function getPriceFilter($number, $decimals = 0, $decPoint = '.', $thousandsSep = ',')
     {
-        $RoutingExtension = $this->app['twig']->getExtension('routing');
-        try {
-            return $RoutingExtension->getUrl($name, $parameters, $schemeRelative);
-        } catch (RouteNotFoundException $e) {
-            trigger_error($e->getMessage(), E_USER_WARNING);
-        }
+        $locale = $this->eccubeConfig['locale'];
+        $currency = $this->eccubeConfig['currency'];
+        $formatter = new \NumberFormatter($locale, \NumberFormatter::CURRENCY);
 
-        return $RoutingExtension->getUrl('homepage').'404?bind='.$name;
+        return $formatter->formatCurrency($number, $currency);
     }
 
     /**
-     * Check if the value is object
+     * Name of this extension
      *
-     * @param object $value
+     * @return string
+     */
+    public function getEllipsis($value, $length = 100, $end = '...')
+    {
+        return StringUtil::ellipsis($value, $length, $end);
+    }
+
+    /**
+     * Name of this extension
+     *
+     * @return string
+     */
+    public function getTimeAgo($date)
+    {
+        return StringUtil::timeAgo($date);
+    }
+
+    /**
+     * FormView にエラーが含まれるかを返す.
+     *
      * @return bool
      */
-    public function isObject($value)
+    public function hasErrors()
     {
-        return is_object($value);
+        $hasErrors = false;
+
+        $views = func_get_args();
+        foreach ($views as $view) {
+            if (!$view instanceof FormView) {
+                throw new \InvalidArgumentException();
+            }
+            if (count($view->vars['errors'])) {
+                $hasErrors = true;
+                break;
+            }
+        }
+
+        return $hasErrors;
     }
 
     /**
@@ -192,14 +197,15 @@ class EccubeExtension extends \Twig_Extension
      * デバッグ環境以外ではProductが取得できなくでもエラー画面は表示させず無視される。
      *
      * @param $id
+     *
      * @return Product|null
      */
     public function getProduct($id)
     {
         try {
-            $Product = $this->app['eccube.repository.product']->get($id);
+            $Product = $this->productRepository->findWithSortedClassCategories($id);
 
-            if ($Product->getStatus()->getId() == Disp::DISPLAY_SHOW) {
+            if ($Product->getStatus()->getId() == ProductStatus::DISPLAY_SHOW) {
                 return $Product;
             }
         } catch (\Exception $e) {
@@ -229,82 +235,135 @@ class EccubeExtension extends \Twig_Extension
     }
 
     /**
-     * FormView にエラーが含まれるかを返す.
+     * Get the ClassCategories as JSON.
      *
-     * @return bool
+     * @param Product $Product
+     *
+     * @return string
      */
-    public function hasErrors()
+    public function getClassCategoriesAsJson(Product $Product)
     {
-        $hasErrors = false;
-        $views = func_get_args();
-        foreach ($views as $view) {
-            if (!$view instanceof FormView) {
-                throw new \InvalidArgumentException();
+        $Product->_calc();
+        $class_categories = [
+            '__unselected' => [
+                '__unselected' => [
+                    'name' => trans('common.select'),
+                    'product_class_id' => '',
+                ],
+            ],
+        ];
+        foreach ($Product->getProductClasses() as $ProductClass) {
+            /** @var ProductClass $ProductClass */
+            if (!$ProductClass->isVisible()) {
+                continue;
             }
-            if (count($view->vars['errors'])) {
-                $hasErrors = true;
-                break;
-            };
+            /* @var $ProductClass \Eccube\Entity\ProductClass */
+            $ClassCategory1 = $ProductClass->getClassCategory1();
+            $ClassCategory2 = $ProductClass->getClassCategory2();
+            if ($ClassCategory2 && !$ClassCategory2->isVisible()) {
+                continue;
+            }
+            $class_category_id1 = $ClassCategory1 ? (string) $ClassCategory1->getId() : '__unselected2';
+            $class_category_id2 = $ClassCategory2 ? (string) $ClassCategory2->getId() : '';
+            $class_category_name2 = $ClassCategory2 ? $ClassCategory2->getName().($ProductClass->getStockFind() ? '' : trans('front.product.out_of_stock_label')) : '';
+
+            $class_categories[$class_category_id1]['#'] = [
+                'classcategory_id2' => '',
+                'name' => trans('common.select'),
+                'product_class_id' => '',
+            ];
+            $class_categories[$class_category_id1]['#'.$class_category_id2] = [
+                'classcategory_id2' => $class_category_id2,
+                'name' => $class_category_name2,
+                'stock_find' => $ProductClass->getStockFind(),
+                'price01' => $ProductClass->getPrice01() === null ? '' : number_format($ProductClass->getPrice01()),
+                'price02' => number_format($ProductClass->getPrice02()),
+                'price01_inc_tax' => $ProductClass->getPrice01() === null ? '' : number_format($ProductClass->getPrice01IncTax()),
+                'price02_inc_tax' => number_format($ProductClass->getPrice02IncTax()),
+                'product_class_id' => (string) $ProductClass->getId(),
+                'product_code' => $ProductClass->getCode() === null ? '' : $ProductClass->getCode(),
+                'sale_type' => (string) $ProductClass->getSaleType()->getId(),
+            ];
         }
-        return $hasErrors;
-    }
 
-
-    /**
-     * return No Image filename
-     *
-     * @return string
-     */
-    public function getNoImageProduct($image)
-    {
-        return empty($image) ? 'no_image_product.jpg' : $image;
+        return json_encode($class_categories);
     }
 
     /**
-     * Name of this extension
+     * Display file extension icon
+     *
+     * @param $ext
+     * @param $attr
+     * @param $iconOnly アイコンのクラス名のみ返す場合はtrue
      *
      * @return string
      */
-    public function getDateFormatFilter($date, $value = '', $format = 'Y/m/d')
+    public function getExtensionIcon($ext, $attr = [], $iconOnly = false)
     {
-        if (is_null($date)) {
-            return $value;
-        } else {
-            return $date->format($format);
+        $classes = [
+            'txt' => 'fa-file-text-o',
+            'rtf' => 'fa-file-text-o',
+            'pdf' => 'fa-file-pdf-o',
+            'doc' => 'fa-file-word-o',
+            'docx' => 'fa-file-word-o',
+            'csv' => 'fa-file-excel-o',
+            'xls' => 'fa-file-excel-o',
+            'xlsx' => 'fa-file-excel-o',
+            'ppt' => 'fa-file-powerpoint-o',
+            'pptx' => 'fa-file-powerpoint-o',
+            'png' => 'fa-file-image-o',
+            'jpg' => 'fa-file-image-o',
+            'jpeg' => 'fa-file-image-o',
+            'bmp' => 'fa-file-image-o',
+            'gif' => 'fa-file-image-o',
+            'zip' => 'fa-file-archive-o',
+            'tar' => 'fa-file-archive-o',
+            'gz' => 'fa-file-archive-o',
+            'rar' => 'fa-file-archive-o',
+            '7zip' => 'fa-file-archive-o',
+            'mp3' => 'fa-file-audio-o',
+            'm4a' => 'fa-file-audio-o',
+            'wav' => 'fa-file-audio-o',
+            'mp4' => 'fa-file-video-o',
+            'wmv' => 'fa-file-video-o',
+            'mov' => 'fa-file-video-o',
+            'mkv' => 'fa-file-video-o',
+        ];
+        $ext = strtolower($ext);
+
+        $class = isset($classes[$ext]) ? $classes[$ext] : 'fa-file-o';
+
+        if ($iconOnly) {
+            return $class;
         }
+
+        $attr['class'] = isset($attr['class'])
+            ? $attr['class']." fa {$class}"
+            : "fa {$class}";
+
+        $html = '<i ';
+        foreach ($attr as $name => $value) {
+            $html .= "{$name}=\"$value\" ";
+        }
+        $html .= '></i>';
+
+        return $html;
     }
 
     /**
-     * Name of this extension
+     * Get currency symbol
      *
-     * @return string
-     */
-    public function getPriceFilter($number, $decimals = 0, $decPoint = '.', $thousandsSep = ',')
-    {
-        $price = number_format($number, $decimals, $decPoint, $thousandsSep);
-        $price = '¥ '.$price;
-
-        return $price;
-    }
-
-    /**
-     * Name of this extension
+     * @param null $currency
      *
-     * @return string
+     * @return bool|string
      */
-    public function getEllipsis($value, $length = 100, $end = '...')
+    public function getCurrencySymbol($currency = null)
     {
-        return Str::ellipsis($value, $length, $end);
-    }
+        if (is_null($currency)) {
+            $currency = $this->eccubeConfig->get('currency');
+        }
+        $symbol = Intl::getCurrencyBundle()->getCurrencySymbol($currency);
 
-    /**
-     * Name of this extension
-     *
-     * @return string
-     */
-    public function getTimeAgo($date)
-    {
-        return Str::timeAgo($date);
+        return $symbol;
     }
-
 }

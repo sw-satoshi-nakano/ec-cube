@@ -1,11 +1,21 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Repository;
 
-use Eccube\Tests\EccubeTestCase;
-use Eccube\Application;
 use Eccube\Entity\BaseInfo;
-
+use Eccube\Repository\BaseInfoRepository;
+use Eccube\Tests\EccubeTestCase;
 
 /**
  * BaseInfoRepository test cases.
@@ -20,13 +30,22 @@ use Eccube\Entity\BaseInfo;
  */
 class BaseInfoRepositoryTest extends EccubeTestCase
 {
+    /**
+     * @var  string
+     */
     private $id;
 
+    /**
+     * @var  BaseInfoRepository
+     */
+    protected $baseInfoRepository;
+
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
-        // テスト時に Application やデータベース接続が不要な場合は、この行を削除してください.
         parent::setUp();
-
         // ダミーデータを生成する Faker
         $faker = $this->getFaker();
 
@@ -38,8 +57,6 @@ class BaseInfoRepositoryTest extends EccubeTestCase
             ->setAddr01($faker->address)
             ->setAddr02($faker->secondaryAddress)
             ->setEmail01($faker->email)
-            ->setLatitude($faker->latitude)
-            ->setLongitude($faker->longitude)
             ->setUpdateDate($faker->dateTime('now'));
 
         /*
@@ -47,9 +64,10 @@ class BaseInfoRepositoryTest extends EccubeTestCase
          * 期待した結果が得られない場合がある.
          * 必要に応じて、Doctrine DBAL や PDO を使用すること.
          */
-        $this->app['orm.em']->persist($BaseInfo);
-        $this->app['orm.em']->flush();
+        $this->entityManager->persist($BaseInfo);
+        $this->entityManager->flush();
         $this->id = $BaseInfo->getId();
+        $this->baseInfoRepository = $this->container->get(BaseInfoRepository::class);
     }
 
     public function testGetBaseInfoWithId()
@@ -58,7 +76,7 @@ class BaseInfoRepositoryTest extends EccubeTestCase
          * テストコードは、できるだけ問題領域のみを記述すること.
          * 簡潔に記述することで、実装時にコピー&ペースト可能なサンプルコードとしても活用できます.
          */
-        $BaseInfo = $this->app['eccube.repository.base_info']->get($this->id);
+        $BaseInfo = $this->baseInfoRepository->get($this->id);
         $this->assertNotNull($BaseInfo);
 
         $this->expected = 'company';
@@ -69,7 +87,7 @@ class BaseInfoRepositoryTest extends EccubeTestCase
 
     public function testGetBaseInfo()
     {
-        $BaseInfo = $this->app['eccube.repository.base_info']->get();
+        $BaseInfo = $this->baseInfoRepository->get();
         $this->assertNotNull($BaseInfo);
         $this->assertEquals(1, $BaseInfo->getId());
     }

@@ -1,471 +1,296 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * Plugin
- */
-class Plugin extends AbstractEntity
-{
+if (!class_exists('\Eccube\Entity\Plugin')) {
     /**
-     * @var integer
-     */
-    private $id;
-
-    /**
-     * @var string
-     */
-    private $name;
-
-    /**
-     * @var string
-     */
-    private $code;
-
-    /**
-     * @var string
-     */
-    private $class_name;
-
-    /**
-     * @var integer
-     */
-    private $enable;
-
-    /**
-     * @var string
-     */
-    private $version;
-
-    /**
-     * @var \DateTime
-     */
-    private $create_date;
-
-    /**
-     * @var integer
-     */
-    private $del_flg;
-
-    /**
-     * @var integer
-     */
-    private $source;
-
-
-    private $update_date;
-
-    // local property
-    /**
-     * @var string
-     */
-    private $update_status;
-
-    /**
-     * @var string
-     */
-    private $new_version;
-
-    /**
-     * @var string
-     */
-    private $last_update_date;
-
-    /**
-     * @var string
-     */
-    private $product_url;
-
-    /**
-     * @var array
-     */
-    private $eccube_version;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $PluginEventHandlers;
-
-
-    public function __construct()
-    {
-        $this->PluginEventHandlers = new \Doctrine\Common\Collections\ArrayCollection();
-
-    }
-
-    /**
-     * Get id
+     * Plugin
      *
-     * @return integer
+     * @ORM\Table(name="dtb_plugin")
+     * @ORM\InheritanceType("SINGLE_TABLE")
+     * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+     * @ORM\HasLifecycleCallbacks()
+     * @ORM\Entity(repositoryClass="Eccube\Repository\PluginRepository")
      */
-    public function getId()
+    class Plugin extends \Eccube\Entity\AbstractEntity
     {
-        return $this->id;
-    }
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="IDENTITY")
+         */
+        private $id;
 
-    /**
-     * Set name
-     *
-     * @param string $name
-     * @return Plugin
-     */
-    public function setName($name)
-    {
-        $this->name = $name;
+        /**
+         * @var string
+         *
+         * @ORM\Column(name="name", type="string", length=255)
+         */
+        private $name;
 
-        return $this;
-    }
+        /**
+         * @var string
+         *
+         * @ORM\Column(name="code", type="string", length=255)
+         */
+        private $code;
 
-    /**
-     * Get name
-     *
-     * @return string
-     */
-    public function getName()
-    {
-        return $this->name;
-    }
+        /**
+         * @var boolean
+         *
+         * @ORM\Column(name="enabled", type="boolean", options={"default":false})
+         */
+        private $enabled = false;
 
-    /**
-     * Set code
-     *
-     * @param string $code
-     * @return Plugin
-     */
-    public function setCode($code)
-    {
-        $this->code = $code;
+        /**
+         * @var string
+         *
+         * @ORM\Column(name="version", type="string", length=255)
+         */
+        private $version;
 
-        return $this;
-    }
+        /**
+         * @var string
+         *
+         * @ORM\Column(name="source", type="string", length=255)
+         */
+        private $source;
 
-    /**
-     * Get code
-     *
-     * @return string
-     */
-    public function getCode()
-    {
-        return $this->code;
-    }
+        /**
+         * @var boolean
+         * @ORM\Column(name="initialized", type="boolean", options={"default":false})
+         */
+        private $initialized = false;
 
-    /**
-     * Set class_name
-     *
-     * @param string $className
-     * @return Plugin
-     */
-    public function setClassName($className)
-    {
-        $this->class_name = $className;
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="create_date", type="datetimetz")
+         */
+        private $create_date;
 
-        return $this;
-    }
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="update_date", type="datetimetz")
+         */
+        private $update_date;
 
-    /**
-     * Get class_name
-     *
-     * @return string
-     */
-    public function getClassName()
-    {
-        return $this->class_name;
-    }
+        /**
+         * Get id.
+         *
+         * @return int
+         */
+        public function getId()
+        {
+            return $this->id;
+        }
 
-    /**
-     * Set enable
-     *
-     * @param integer $enable
-     * @return Plugin
-     */
-    public function setEnable($enable)
-    {
-        $this->enable = $enable;
+        /**
+         * Set name.
+         *
+         * @param string $name
+         *
+         * @return Plugin
+         */
+        public function setName($name)
+        {
+            $this->name = $name;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get enable
-     *
-     * @return integer
-     */
-    public function getEnable()
-    {
-        return $this->enable;
-    }
+        /**
+         * Get name.
+         *
+         * @return string
+         */
+        public function getName()
+        {
+            return $this->name;
+        }
 
-    /**
-     * Set version
-     *
-     * @param string $version
-     * @return Plugin
-     */
-    public function setVersion($version)
-    {
-        $this->version = $version;
+        /**
+         * Set code.
+         *
+         * @param string $code
+         *
+         * @return Plugin
+         */
+        public function setCode($code)
+        {
+            $this->code = $code;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get version
-     *
-     * @return string
-     */
-    public function getVersion()
-    {
-        return $this->version;
-    }
+        /**
+         * Get code.
+         *
+         * @return string
+         */
+        public function getCode()
+        {
+            return $this->code;
+        }
 
-    /**
-     * Set create_date
-     *
-     * @param \DateTime $createDate
-     * @return Plugin
-     */
-    public function setCreateDate($createDate)
-    {
-        $this->create_date = $createDate;
+        /**
+         * Set enabled.
+         *
+         * @param boolean $enabled
+         *
+         * @return Plugin
+         */
+        public function setEnabled($enabled)
+        {
+            $this->enabled = $enabled;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get create_date
-     *
-     * @return \DateTime
-     */
-    public function getCreateDate()
-    {
-        return $this->create_date;
-    }
+        /**
+         * Get enabled.
+         *
+         * @return boolean
+         */
+        public function isEnabled()
+        {
+            return $this->enabled;
+        }
 
-    /**
-     * Set update_date
-     *
-     * @param \DateTime $updateDate
-     * @return Plugin
-     */
-    public function setUpdateDate($updateDate)
-    {
-        $this->update_date = $updateDate;
+        /**
+         * Set version.
+         *
+         * @param string $version
+         *
+         * @return Plugin
+         */
+        public function setVersion($version)
+        {
+            $this->version = $version;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get update_date
-     *
-     * @return \DateTime
-     */
-    public function getUpdateDate()
-    {
-        return $this->update_date;
-    }
+        /**
+         * Get version.
+         *
+         * @return string
+         */
+        public function getVersion()
+        {
+            return $this->version;
+        }
 
-    /**
-     * Set del_flg
-     *
-     * @param integer $delFlg
-     * @return Plugin
-     */
-    public function setDelFlg($delFlg)
-    {
-        $this->del_flg = $delFlg;
+        /**
+         * Set source.
+         *
+         * @param string $source
+         *
+         * @return Plugin
+         */
+        public function setSource($source)
+        {
+            $this->source = $source;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get del_flg
-     *
-     * @return integer
-     */
-    public function getDelFlg()
-    {
-        return $this->del_flg;
-    }
+        /**
+         * Get source.
+         *
+         * @return string
+         */
+        public function getSource()
+        {
+            return $this->source;
+        }
 
-    /**
-     * Set source
-     *
-     * @param integer $source
-     * @return Plugin
-     */
-    public function setSource($source)
-    {
-        $this->source = $source;
+        /**
+         * Get initialized.
+         *
+         * @return bool
+         */
+        public function isInitialized(): bool
+        {
+            return $this->initialized;
+        }
 
-        return $this;
-    }
+        /**
+         * Set initialized.
+         *
+         * @param bool $initialized
+         *
+         * @return Plugin
+         */
+        public function setInitialized(bool $initialized)
+        {
+            $this->initialized = $initialized;
 
-    /**
-     * Get source
-     *
-     * @return integer
-     */
-    public function getSource()
-    {
-        return $this->source;
-    }
+            return $this;
+        }
 
-    /**
-     * Set update_status
-     *
-     * @param string $updateStatus
-     * @return Plugin
-     */
-    public function setUpdateStatus($updateStatus)
-    {
-        $this->update_status = $updateStatus;
+        /**
+         * Set createDate.
+         *
+         * @param \DateTime $createDate
+         *
+         * @return Plugin
+         */
+        public function setCreateDate($createDate)
+        {
+            $this->create_date = $createDate;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get update_status
-     *
-     * @return string
-     */
-    public function getUpdateStatus()
-    {
-        return $this->update_status;
-    }
+        /**
+         * Get createDate.
+         *
+         * @return \DateTime
+         */
+        public function getCreateDate()
+        {
+            return $this->create_date;
+        }
 
-    /**
-     * Set new_version
-     *
-     * @param string $newVersion
-     * @return Plugin
-     */
-    public function setNewVersion($newVersion)
-    {
-        $this->new_version = $newVersion;
+        /**
+         * Set updateDate.
+         *
+         * @param \DateTime $updateDate
+         *
+         * @return Plugin
+         */
+        public function setUpdateDate($updateDate)
+        {
+            $this->update_date = $updateDate;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get new_version
-     *
-     * @return string
-     */
-    public function getNewVersion()
-    {
-        return $this->new_version;
-    }
-
-    /**
-     * Set last_update_date
-     *
-     * @param string $lastUpdateDate
-     * @return Plugin
-     */
-    public function setLastUpdateDate($lastUpdateDate)
-    {
-        $this->last_update_date = $lastUpdateDate;
-
-        return $this;
-    }
-
-    /**
-     * Get last_update_date
-     *
-     * @return string
-     */
-    public function getLastUpdateDate()
-    {
-        return $this->last_update_date;
-    }
-
-    /**
-     * Set product_url
-     *
-     * @param string $productUrl
-     * @return Plugin
-     */
-    public function setProductUrl($productUrl)
-    {
-        $this->product_url = $productUrl;
-
-        return $this;
-    }
-
-    /**
-     * Get product_url
-     *
-     * @return string
-     */
-    public function getProductUrl()
-    {
-        return $this->product_url;
-    }
-
-    /**
-     * Set eccube_version
-     *
-     * @param array $eccube_version
-     * @return Plugin
-     */
-    public function setEccubeVersion($eccube_version)
-    {
-        $this->eccube_version = $eccube_version;
-
-        return $this;
-    }
-
-    /**
-     * Get eccube_version
-     *
-     * @return array
-     */
-    public function getEccubeVersion()
-    {
-        return $this->eccube_version;
-    }
-
-    public function getEccubeVersionAsString()
-    {
-        return implode(', ', $this->getEccubeVersion());
-    }
-
-    public function getPluginEventHandlers()
-    {
-        return $this->PluginEventHandlers;
-    }
-    public function addPluginEventHandler(\Eccube\Entity\PluginEventHandler $PluginEventHandler)
-    {
-        $this->PluginEventHandlers[] = $PluginEventHandler;
-        return $this;
-    }
-    public function removePluginEventHandler(\Eccube\Entity\PluginEventHandler $PluginEventHandler)
-    {
-        $this->PluginEventHandlers->removeElement($PluginEventHandler);
-        return $this;
+        /**
+         * Get updateDate.
+         *
+         * @return \DateTime
+         */
+        public function getUpdateDate()
+        {
+            return $this->update_date;
+        }
     }
 }

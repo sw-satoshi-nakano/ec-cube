@@ -1,49 +1,40 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Form\Type\Master;
 
+use Eccube\Form\Type\Master\DeliveryDurationType;
+use Eccube\Repository\DeliveryDurationRepository;
 use Eccube\Tests\Form\Type\AbstractTypeTestCase;
 
-class DeliveryDateTypeTest extends AbstractTypeTestCase
+class DeliveryDurationTypeTest extends AbstractTypeTestCase
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
     /** @var \Symfony\Component\Form\FormInterface */
     protected $form;
 
+    /** @var DeliveryDurationRepository */
+    protected $deliveryDurationRepo;
 
     public function setUp()
     {
         parent::setUp();
+        $this->deliveryDurationRepo = $this->container->get(DeliveryDurationRepository::class);
 
         // CSRF tokenを無効にしてFormを作成
-        $this->form = $this->app['form.factory']
-            ->createBuilder('delivery_date', null, array(
+        $this->form = $this->formFactory
+            ->createBuilder(DeliveryDurationType::class, null, [
                 'csrf_protection' => false,
-            ))
+            ])
             ->getForm();
     }
 
@@ -51,7 +42,7 @@ class DeliveryDateTypeTest extends AbstractTypeTestCase
     {
         $this->form->submit(1);
         $this->assertTrue($this->form->isValid());
-        $this->assertEquals($this->form->getData(), $this->app['eccube.repository.delivery_date']->find(1));
+        $this->assertEquals($this->form->getData(), $this->deliveryDurationRepo->find(1));
     }
 
     public function testViewData()
@@ -59,17 +50,18 @@ class DeliveryDateTypeTest extends AbstractTypeTestCase
         $view = $this->form->createView();
         $choices = $view->vars['choices'];
 
-        $data = array();
+        $data = [];
         foreach ($choices as $choice) {
             $data[] = $choice->data;
         }
-        $query = $this->app['eccube.repository.delivery_date']->createQueryBuilder('m')
-            ->orderBy('m.rank', 'ASC')
+        $query = $this->deliveryDurationRepo->createQueryBuilder('m')
+            ->orderBy('m.sort_no', 'ASC')
             ->getQuery();
         $res = $query->getResult();
         // order by されているか
         $this->assertEquals($data, $res);
     }
+
     /**
      * 範囲外の値のテスト
      */
@@ -78,6 +70,7 @@ class DeliveryDateTypeTest extends AbstractTypeTestCase
         $this->form->submit(50);
         $this->assertFalse($this->form->isValid());
     }
+
     /**
      * 範囲外の値のテスト
      */

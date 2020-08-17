@@ -1,57 +1,100 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Mypage;
 
-use Eccube\Application;
-use Eccube\Common\Constant;
 use Eccube\Controller\AbstractController;
+use Eccube\Entity\Master\CustomerStatus;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
-use Eccube\Util\Str;
+use Eccube\Repository\Master\CustomerStatusRepository;
+use Eccube\Service\CartService;
+use Eccube\Service\MailService;
+use Eccube\Service\OrderHelper;
+use Eccube\Util\StringUtil;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 class WithdrawController extends AbstractController
 {
     /**
+     * @var MailService
+     */
+    protected $mailService;
+
+    /**
+     * @var CustomerStatusRepository
+     */
+    protected $customerStatusRepository;
+
+    /**
+     * @var TokenStorage
+     */
+    protected $tokenStorage;
+
+    /**
+     * @var CartService
+     */
+    private $cartService;
+
+    /**
+     * @var OrderHelper
+     */
+    private $orderHelper;
+
+    /**
+     * WithdrawController constructor.
+     *
+     * @param MailService $mailService
+     * @param CustomerStatusRepository $customerStatusRepository
+     * @param TokenStorageInterface $tokenStorage
+     * @param CartService $cartService
+     * @param OrderHelper $orderHelper
+     */
+    public function __construct(
+        MailService $mailService,
+        CustomerStatusRepository $customerStatusRepository,
+        TokenStorageInterface $tokenStorage,
+        CartService $cartService,
+        OrderHelper $orderHelper
+    ) {
+        $this->mailService = $mailService;
+        $this->customerStatusRepository = $customerStatusRepository;
+        $this->tokenStorage = $tokenStorage;
+        $this->cartService = $cartService;
+        $this->orderHelper = $orderHelper;
+    }
+
+    /**
      * 退会画面.
      *
-     * @param Application $app
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
+     * @Route("/mypage/withdraw", name="mypage_withdraw")
+     * @Template("Mypage/withdraw.twig")
      */
-    public function index(Application $app, Request $request)
+    public function index(Request $request)
     {
-        $builder = $app->form();
+        $builder = $this->formFactory->createBuilder();
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_MYPAGE_WITHDRAW_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::FRONT_MYPAGE_WITHDRAW_INDEX_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
@@ -62,60 +105,66 @@ class WithdrawController extends AbstractController
                 case 'confirm':
                     log_info('退会確認画面表示');
 
-                    return $app->render('Mypage/withdraw_confirm.twig', array(
-                        'form' => $form->createView(),
-                    ));
+                    return $this->render(
+                        'Mypage/withdraw_confirm.twig',
+                        [
+                            'form' => $form->createView(),
+                        ]
+                    );
 
                 case 'complete':
                     log_info('退会処理開始');
 
                     /* @var $Customer \Eccube\Entity\Customer */
-                    $Customer = $app->user();
-
-                    // 会員削除
+                    $Customer = $this->getUser();
                     $email = $Customer->getEmail();
-                    // メールアドレスにダミーをセット
-                    $Customer->setEmail(Str::random(60) . '@dummy.dummy');
-                    $Customer->setDelFlg(Constant::ENABLED);
 
-                    $app['orm.em']->flush();
+                    // 退会ステータスに変更
+                    $CustomerStatus = $this->customerStatusRepository->find(CustomerStatus::WITHDRAWING);
+                    $Customer->setStatus($CustomerStatus);
+                    $Customer->setEmail(StringUtil::random(60).'@dummy.dummy');
+
+                    $this->entityManager->flush();
 
                     log_info('退会処理完了');
 
                     $event = new EventArgs(
-                        array(
+                        [
                             'form' => $form,
                             'Customer' => $Customer,
-                        ), $request
+                        ], $request
                     );
-                    $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_MYPAGE_WITHDRAW_INDEX_COMPLETE, $event);
+                    $this->eventDispatcher->dispatch(EccubeEvents::FRONT_MYPAGE_WITHDRAW_INDEX_COMPLETE, $event);
 
                     // メール送信
-                    $app['eccube.service.mail']->sendCustomerWithdrawMail($Customer, $email);
+                    $this->mailService->sendCustomerWithdrawMail($Customer, $email);
+
+                    // カートと受注のセッションを削除
+                    $this->cartService->clear();
+                    $this->orderHelper->removeSession();
 
                     // ログアウト
-                    $this->getSecurity($app)->setToken(null);
+                    $this->tokenStorage->setToken(null);
 
                     log_info('ログアウト完了');
 
-                    return $app->redirect($app->url('mypage_withdraw_complete'));
+                    return $this->redirect($this->generateUrl('mypage_withdraw_complete'));
             }
         }
 
-        return $app->render('Mypage/withdraw.twig', array(
+        return [
             'form' => $form->createView(),
-        ));
+        ];
     }
 
     /**
      * 退会完了画面.
      *
-     * @param Application $app
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @Route("/mypage/withdraw_complete", name="mypage_withdraw_complete")
+     * @Template("Mypage/withdraw_complete.twig")
      */
-    public function complete(Application $app, Request $request)
+    public function complete(Request $request)
     {
-        return $app->render('Mypage/withdraw_complete.twig');
+        return [];
     }
 }

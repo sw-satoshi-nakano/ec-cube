@@ -1,84 +1,69 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type;
 
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Validator\Constraints as Assert;
 
 class ShoppingMultipleType extends AbstractType
 {
-
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-
         $deliveries = $options['deliveries'];
         $delivery = $options['delivery'];
-        $deliveryDates = $options['deliveryDates'];
+        $deliveryDurations = $options['deliveryDurations'];
 
         $builder
-            ->add('delivery', 'entity', array(
+            ->add('delivery', EntityType::class, [
                 'class' => 'Eccube\Entity\Delivery',
-                'property' => 'name',
+                'choice_label' => 'name',
                 'choices' => $deliveries,
                 'data' => $delivery,
-            ))
-            ->add('deliveryDate', 'choice', array(
-                'choices' => $deliveryDates,
+            ])
+            ->add('deliveryDuration', ChoiceType::class, [
+                'choices' => array_flip($deliveryDurations),
                 'required' => false,
-                'empty_value' => '指定なし',
-            ))
-            ->add('deliveryTime', 'entity', array(
+                'placeholder' => 'common.select__unspecified',
+            ])
+            ->add('deliveryTime', EntityType::class, [
                 'class' => 'Eccube\Entity\DeliveryTime',
-                'property' => 'deliveryTime',
+                'choice_label' => 'deliveryTime',
                 'choices' => $delivery->getDeliveryTimes(),
                 'required' => false,
-                'empty_value' => '指定なし',
-                'empty_data' => null,
-            ));
-
+                'placeholder' => 'common.select__unspecified',
+            ]);
     }
 
     public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'deliveries' => array(),
+        $resolver->setDefaults([
+            'deliveries' => [],
             'delivery' => null,
-            'deliveryDates' => array(),
-        ));
-
+            'deliveryDurations' => [],
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'shopping_multiple';
     }

@@ -1,44 +1,46 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Form\Type\PriceType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
-use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class PaymentRegisterType extends AbstractType
 {
-    protected $app;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($app)
+    /**
+     * PaymentRegisterType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->app = $app;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -46,111 +48,75 @@ class PaymentRegisterType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $app = $this->app;
-
         $builder
-            ->add('method', 'text', array(
-                'label' => '支払方法',
+            ->add('method', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ))
-            ->add('rule_min', 'money', array(
-                'label' => false,
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_stext_len']]),
+                ],
+            ])
+            ->add('rule_min', PriceType::class, [
                 'currency' => 'JPY',
-                'precision' => 0,
                 'scale' => 0,
                 'grouping' => true,
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $app['config']['int_len'],
-                    )),
-                    new Assert\Regex(array(
+                'constraints' => [
+                    // TODO 最大値でチェックしたい
+                    // new Assert\Length(array(
+                    //     'max' => $app['config']['int_len'],
+                    // )),
+                    new Assert\Regex([
                         'pattern' => "/^\d+$/u",
-                        'message' => 'form.type.numeric.invalid'
-                    )),
-                ),
-            ))
-            ->add('rule_max', 'money', array(
+                        'message' => 'form_error.numeric_only',
+                    ]),
+                ],
+            ])
+            ->add('rule_max', PriceType::class, [
                 'label' => false,
-                'currency' => 'JPY',
-                'precision' => 0,
-                'scale' => 0,
-                'grouping' => true,
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $app['config']['int_len'],
-                    )),
-                    new Assert\Regex(array(
-                        'pattern' => "/^\d+$/u",
-                        'message' => 'form.type.numeric.invalid'
-                    )),
-                ),
-            ))
-            ->add('payment_image_file', 'file', array(
-                'label' => 'ロゴ画像',
+            ])
+            ->add('payment_image_file', FileType::class, [
                 'mapped' => false,
                 'required' => false,
-            ))
-            ->add('payment_image', 'hidden', array(
+            ])
+            ->add('payment_image', HiddenType::class, [
                 'required' => false,
-            ))
-            ->add('charge_flg', 'hidden')
-            ->add('fix_flg', 'hidden')
-            ->addEventListener(FormEvents::POST_BIND, function($event) {
+            ])
+            ->add('visible', ChoiceType::class, [
+                'label' => false,
+                'choices' => ['admin.common.show' => true, 'admin.common.hide' => false],
+                'required' => true,
+                'expanded' => false,
+            ])
+            ->add('charge', PriceType::class, [
+            ])
+            ->add('fixed', HiddenType::class)
+            ->addEventListener(FormEvents::POST_SUBMIT, function ($event) {
                 $form = $event->getForm();
                 $ruleMax = $form['rule_max']->getData();
                 $ruleMin = $form['rule_min']->getData();
                 if (!empty($ruleMin) && !empty($ruleMax) && $ruleMax < $ruleMin) {
-                    $form['rule_min']->addError(new FormError('利用条件(下限)は'.$ruleMax.'円以下にしてください。'));
+                    $message = trans('admin.setting.shop.payment.terms_of_use_error', ['%price%' => $ruleMax]);
+                    $form['rule_min']->addError(new FormError($message));
                 }
-            })
-            ->addEventListener(FormEvents::POST_SET_DATA, function(FormEvent $event) use ($app) {
-                $form = $event->getForm();
-                /** @var \Eccube\Entity\Payment $Payment */
-                $Payment = $event->getData();
-                if (is_null($Payment) || $Payment->getChargeFlg() == 1) {
-                    $form->add('charge', 'money', array(
-                        'label' => '手数料',
-                        'currency' => 'JPY',
-                        'precision' => 0,
-                        'scale' => 0,
-                        'grouping' => true,
-                        'constraints' => array(
-                            new Assert\NotBlank(),
-                            new Assert\Length(array(
-                                'max' => $app['config']['int_len'],
-                            )),
-                            new Assert\Regex(array(
-                                'pattern' => "/^\d+$/u",
-                                'message' => 'form.type.numeric.invalid'
-                            )),
-                        ),
-                    ));
-                } else {
-                    $form->add('charge', 'hidden');
-                }
-            })
-        ;
+            });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
+        $resolver->setDefaults([
             'data_class' => 'Eccube\Entity\Payment',
-        ));
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'payment_register';
     }

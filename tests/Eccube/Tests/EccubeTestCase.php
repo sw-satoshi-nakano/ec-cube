@@ -1,16 +1,31 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests;
 
-use Doctrine\DBAL\Migrations\Configuration\Configuration;
-use Doctrine\DBAL\Migrations\Migration;
-use Eccube\Application;
+use Doctrine\ORM\EntityManagerInterface;
+use Eccube\Common\EccubeConfig;
 use Eccube\Entity\Customer;
-use Eccube\Tests\Mock\CsrfTokenMock;
+use Eccube\Entity\ProductClass;
+use Eccube\Tests\Fixture\Generator;
 use Faker\Factory as Faker;
-use Guzzle\Http\Client;
-use Silex\WebTestCase;
+use GuzzleHttp\Client as HttpClient;
+use Symfony\Bundle\FrameworkBundle\Client;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Bundle\SwiftmailerBundle\DataCollector\MessageDataCollector;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * Abstract class that other unit tests can extend, provides generic methods for EC-CUBE tests.
@@ -26,18 +41,35 @@ abstract class EccubeTestCase extends WebTestCase
     protected $expected;
 
     /**
-     * Applicaiton を生成しトランザクションを開始する.
+     * @var Client
+     */
+    protected $client;
+
+    /**
+     * @var ContainerInterface
+     */
+    protected $container;
+
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
+
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
+
+    /**
+     * Client を生成しトランザクションを開始する.
      */
     public function setUp()
     {
         parent::setUp();
-        $this->app->setTestMode(true);
-        if ($this->isSqliteInMemory()) {
-            $this->initializeDatabase();
-        }
-        if (isset($this->app['orm.em'])) {
-            $this->app['orm.em']->getConnection()->beginTransaction();
-        }
+        $this->client = self::createClient();
+        $this->container = $this->client->getContainer();
+        $this->entityManager = $this->container->get('doctrine')->getManager();
+        $this->eccubeConfig = $this->container->get(EccubeConfig::class);
     }
 
     /**
@@ -46,88 +78,18 @@ abstract class EccubeTestCase extends WebTestCase
     public function tearDown()
     {
         parent::tearDown();
-        if (!$this->isSqliteInMemory()) {
-            $this->app['orm.em']->getConnection()->rollback();
-            $this->app['orm.em']->getConnection()->close();
-        }
 
         $this->cleanUpProperties();
-        $this->app = null;
-    }
-
-    /**
-     * データベースを初期化する.
-     *
-     * データベースを初期化し、マイグレーションを行なう.
-     * 全てのデータが初期化されるため注意すること.
-     *
-     * @link http://jamesmcfadden.co.uk/database-unit-testing-with-doctrine-2-and-phpunit/
-     */
-    public function initializeDatabase()
-    {
-        // Get an instance of your entity manager
-        $entityManager = $this->app['orm.em'];
-
-        // Retrieve PDO instance
-        $pdo = $entityManager->getConnection()->getWrappedConnection();
-
-        // Clear Doctrine to be safe
-        $entityManager->getConnection()->getConfiguration()->setSQLLogger(null);
-        $entityManager->clear();
-        gc_collect_cycles();
-
-        // Schema Tool to process our entities
-        $tool = new \Doctrine\ORM\Tools\SchemaTool($entityManager);
-        $classes = $entityManager->getMetaDataFactory()->getAllMetaData();
-
-        // Drop all classes and re-build them for each test case
-        $tool->dropSchema($classes);
-        $tool->createSchema($classes);
-        $config = new Configuration($this->app['db']);
-        $config->setMigrationsNamespace('DoctrineMigrations');
-
-        $migrationDir = __DIR__.'/../../../src/Eccube/Resource/doctrine/migration';
-        $config->setMigrationsDirectory($migrationDir);
-        $config->registerMigrationsFromDirectory($migrationDir);
-
-        $migration = new Migration($config);
-        // initialize migrations.sql from bootstrap
-        if (!file_exists(sys_get_temp_dir().'/migrations.sql')) {
-            $sql = $migration->migrate(null, false);
-            file_put_contents(sys_get_temp_dir().'/migrations.sql', json_encode($sql));
-        } else {
-            $migrations = json_decode(file_get_contents(sys_get_temp_dir().'/migrations.sql'), true);
-            foreach ($migrations as $migration_sql) {
-                foreach ($migration_sql as $sql) {
-                    if ($this->isSqliteInMemory()) {
-                        // XXX #1199 の問題を無理矢理回避...
-                        $sql = preg_replace('/CURRENT_TIMESTAMP/i', "datetime('now','-9 hours')", $sql);
-                    }
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute();
-                    $stmt->closeCursor();
-                }
-            }
-        }
-
-        // 通常は eccube_install.sh で追加されるデータを追加する
-        $sql = "INSERT INTO dtb_member (member_id, login_id, password, salt, work, del_flg, authority, creator_id, rank, update_date, create_date,name,department) VALUES (2, 'admin', 'test', 'test', 1, 0, 0, 1, 1, current_timestamp, current_timestamp,'管理者','EC-CUBE SHOP')";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute();
-        $stmt->closeCursor();
-
-        $sql = "INSERT INTO dtb_base_info (id, shop_name, email01, email02, email03, email04, update_date, option_product_tax_rule) VALUES (1, 'SHOP_NAME', 'admin@example.com', 'admin@example.com', 'admin@example.com', 'admin@example.com', current_timestamp, 0)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute();
-        $stmt->closeCursor();
     }
 
     /**
      * Faker を生成する.
      *
      * @param string $locale ロケールを指定する. デフォルト ja_JP
-     * @return Faker\Generator
-     * @link https://github.com/fzaninotto/Faker
+     *
+     * @return \Faker\Generator
+     *
+     * @see https://github.com/fzaninotto/Faker
      */
     public function getFaker($locale = 'ja_JP')
     {
@@ -138,7 +100,8 @@ abstract class EccubeTestCase extends WebTestCase
      * Expected と Actual を比較する.
      *
      * @param string $message エラーメッセージ
-     * @link http://objectclub.jp/community/memorial/homepage3.nifty.com/masarl/article/junit/scenario-based-testcase.html#verify%20%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89
+     *
+     * @see http://objectclub.jp/community/memorial/homepage3.nifty.com/masarl/article/junit/scenario-based-testcase.html#verify%20%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89
      */
     public function verify($message = '')
     {
@@ -149,22 +112,24 @@ abstract class EccubeTestCase extends WebTestCase
      * Member オブジェクトを生成して返す.
      *
      * @param string $username . null の場合は, ランダムなユーザーIDが生成される.
+     *
      * @return \Eccube\Entity\Member
      */
     public function createMember($username = null)
     {
-        return $this->app['eccube.fixture.generator']->createMember($username);
+        return $this->container->get(Generator::class)->createMember($username);
     }
 
     /**
      * Customer オブジェクトを生成して返す.
      *
      * @param string $email メールアドレス. null の場合は, ランダムなメールアドレスが生成される.
+     *
      * @return \Eccube\Entity\Customer
      */
     public function createCustomer($email = null)
     {
-        return $this->app['eccube.fixture.generator']->createCustomer($email);
+        return $this->container->get(Generator::class)->createCustomer($email);
     }
 
     /**
@@ -172,22 +137,24 @@ abstract class EccubeTestCase extends WebTestCase
      *
      * @param Customer $Customer 対象の Customer インスタンス
      * @param boolean $is_nonmember 非会員の場合 true
+     *
      * @return \Eccube\Entity\CustomerAddress
      */
     public function createCustomerAddress(Customer $Customer, $is_nonmember = false)
     {
-        return $this->app['eccube.fixture.generator']->createCustomerAddress($Customer, $is_nonmember);
+        return $this->container->get(Generator::class)->createCustomerAddress($Customer, $is_nonmember);
     }
 
     /**
      * 非会員の Customer オブジェクトを生成して返す.
      *
      * @param string $email メールアドレス. null の場合は, ランダムなメールアドレスが生成される.
+     *
      * @return \Eccube\Entity\Customer
      */
     public function createNonMember($email = null)
     {
-        return $this->app['eccube.fixture.generator']->createNonMember($email);
+        return $this->container->get(Generator::class)->createNonMember($email);
     }
 
     /**
@@ -195,17 +162,19 @@ abstract class EccubeTestCase extends WebTestCase
      *
      * @param string $product_name 商品名. null の場合はランダムな文字列が生成される.
      * @param integer $product_class_num 商品規格の生成数
+     *
      * @return \Eccube\Entity\Product
      */
     public function createProduct($product_name = null, $product_class_num = 3)
     {
-        return $this->app['eccube.fixture.generator']->createProduct($product_name, $product_class_num);
+        return $this->container->get(Generator::class)->createProduct($product_name, $product_class_num);
     }
 
     /**
      * Order オブジェクトを生成して返す.
      *
      * @param \Eccube\Entity\Customer $Customer Customer インスタンス
+     *
      * @return \Eccube\Entity\Order
      */
     public function createOrder(Customer $Customer)
@@ -214,7 +183,20 @@ abstract class EccubeTestCase extends WebTestCase
         $ProductClasses = $Product->getProductClasses();
 
         // 後方互換のため最初の1つのみ渡す
-        return $this->app['eccube.fixture.generator']->createOrder($Customer, array($ProductClasses[0]));
+        return $this->container->get(Generator::class)->createOrder($Customer, [$ProductClasses[0]]);
+    }
+
+    /**
+     * Order オブジェクトを生成して返す.
+     *
+     * @param \Eccube\Entity\Customer $Customer Customer インスタンス
+     * @param ProductClass[] $ProductClasses
+     *
+     * @return \Eccube\Entity\Order
+     */
+    public function createOrderWithProductClasses(Customer $Customer, array $ProductClasses)
+    {
+        return $this->container->get(Generator::class)->createOrder($Customer, $ProductClasses);
     }
 
     /**
@@ -225,21 +207,22 @@ abstract class EccubeTestCase extends WebTestCase
      * @param integer $charge 手数料
      * @param integer $rule_min 下限金額
      * @param integer $rule_max 上限金額
+     *
      * @return \Eccube\Entity\Payment
      */
     public function createPayment(\Eccube\Entity\Delivery $Delivery, $method, $charge = 0, $rule_min = 0, $rule_max = 999999999)
     {
-        return $this->app['eccube.fixture.generator']->createPayment($Delivery, $method, $charge, $rule_min, $rule_max);
+        return $this->container->get(Generator::class)->createPayment($Delivery, $method, $charge, $rule_min, $rule_max);
     }
 
     /**
-     * PageLayout オブジェクトを生成して返す
+     * Page オブジェクトを生成して返す
      *
-     * @return \Eccube\Entity\PageLayout
+     * @return \Eccube\Entity\Page
      */
-    public function createPageLayout()
+    public function createPage()
     {
-        return $this->app['eccube.fixture.generator']->createPageLayout();
+        return $this->container->get(Generator::class)->createPage();
     }
 
     /**
@@ -252,71 +235,41 @@ abstract class EccubeTestCase extends WebTestCase
      */
     public function deleteAllRows(array $tables)
     {
-        $pdo = $this->app['orm.em']->getConnection()->getWrappedConnection();
+        /** @var Connection $conn */
+        $conn = $this->entityManager->getConnection();
+
+        // MySQLの場合は参照制約を無効にする.
+        if ('mysql' === $conn->getDatabasePlatform()->getName()) {
+            $conn->query('SET FOREIGN_KEY_CHECKS = 0');
+        }
+
         foreach ($tables as $table) {
             $sql = 'DELETE FROM '.$table;
-            $stmt = $pdo->prepare($sql);
+            $stmt = $conn->prepare($sql);
             $stmt->execute();
+        }
+
+        if ('mysql' === $conn->getDatabasePlatform()->getName()) {
+            $conn->query('SET FOREIGN_KEY_CHECKS = 1');
         }
     }
 
     /**
-     * {@inheritdoc}
-     */
-    public function createApplication()
-    {
-        $app = Application::getInstance();
-        $app['debug'] = true;
-
-        // ログの内容をERRORレベルでしか出力しないように設定を上書き
-        $app['config'] = $app->share($app->extend('config', function ($config, \Silex\Application $app) {
-            $config['log']['log_level'] = 'ERROR';
-            $config['log']['action_level'] = 'ERROR';
-            $config['log']['passthru_level'] = 'ERROR';
-
-            $channel = $config['log']['channel'];
-            foreach (array('monolog', 'front', 'admin') as $key) {
-                $channel[$key]['log_level'] = 'ERROR';
-                $channel[$key]['action_level'] = 'ERROR';
-                $channel[$key]['passthru_level'] = 'ERROR';
-            }
-            $config['log']['channel'] = $channel;
-
-            return $config;
-        }));
-        $app->initLogger();
-
-        $app->initialize();
-        $app->initializePlugin();
-        $app['session.test'] = true;
-        $app['exception_handler']->disable();
-
-        $app['form.csrf_provider'] = $app->share(function () {
-            return new CsrfTokenMock();
-        });
-        $app->register(new \Eccube\Tests\ServiceProvider\FixtureServiceProvider());
-        $app->boot();
-
-        return $app;
-    }
-
-    /**
-     * PHPUnit_* インスタンスのプロパティを初期化する.
+     * PHPUnit インスタンスのプロパティを初期化する.
      *
      * このメソッドは、PHPUnit のメモリリーク解消のため、 tearDown() メソッドでコールされる.
      *
-     * @link http://stackoverflow.com/questions/13537545/clear-memory-being-used-by-php
+     * @see http://stackoverflow.com/questions/13537545/clear-memory-being-used-by-php
      */
     protected function cleanUpProperties()
     {
         $refl = new \ReflectionObject($this);
         foreach ($refl->getProperties() as $prop) {
-            if (!$prop->isStatic() && 0 !== strpos($prop->getDeclaringClass()->getName(), 'PHPUnit_')) {
+            if (!$prop->isStatic() && 0 !== strpos($prop->getDeclaringClass()->getName(), 'PHPUnit')) {
                 $prop->setAccessible(true);
                 $prop->setValue($this, null);
             }
         }
-        \Eccube\Application::clearInstance();
     }
 
     /**
@@ -327,35 +280,27 @@ abstract class EccubeTestCase extends WebTestCase
      * MailCatcher については \Eccube\Tests\Service\MailServiceTest のコメントを参照してください
      *
      * @see \Eccube\Tests\Service\MailServiceTest
-     * @link http://mailcatcher.me/
+     * @see http://mailcatcher.me/
+     * @deprecated
      */
     protected function initializeMailCatcher()
     {
         $this->checkMailCatcherStatus();
-        $config = $this->app['config'];
-        $config['mail']['transport'] = 'smtp';
-        $config['mail']['host'] = '127.0.0.1';
-        $config['mail']['port'] = 1025;
-        $config['mail']['username'] = null;
-        $config['mail']['password'] = null;
-        $config['mail']['encryption'] = null;
-        $config['mail']['auth_mode'] = null;
-        $this->app['config'] = $config;
-        $this->app['swiftmailer.use_spool'] = false;
-        $this->app['swiftmailer.options'] = $this->app['config']['mail'];
     }
 
     /**
      * MailCatcher の起動状態をチェックする.
      *
      * MailCatcher が起動していない場合は, テストをスキップする.
+     *
+     * @deprecated
      */
     protected function checkMailCatcherStatus()
     {
+        trigger_error('MailCatcher is deprecated. Please implementation to the EccubeTestCase::getMailCollector().', E_USER_ERROR);
         try {
-            $client = new Client();
-            $request = $client->get(self::MAILCATCHER_URL.'messages');
-            $response = $request->send();
+            $httpClient = new HttpClient();
+            $response = $httpClient->get(self::MAILCATCHER_URL.'messages');
             if ($response->getStatusCode() !== 200) {
                 throw new HttpException($response->getStatusCode());
             }
@@ -364,21 +309,22 @@ abstract class EccubeTestCase extends WebTestCase
         } catch (\Exception $e) {
             $message = 'MailCatcher is not available';
             $this->markTestSkipped($message);
-            $this->app->log($message);
+            log_error($message);
         }
     }
 
     /**
      * MailCatcher のメッセージをすべて削除する.
+     *
+     * @deprecated
      */
     protected function cleanUpMailCatcherMessages()
     {
         try {
-            $client = new Client();
-            $request = $client->delete(self::MAILCATCHER_URL.'messages');
-            $request->send();
+            $httpClient = new HttpClient();
+            $response = $httpClient->delete(self::MAILCATCHER_URL.'messages');
         } catch (\Exception $e) {
-            $this->app->log('['.get_class().'] '.$e->getMessage());
+            log_error('['.get_class().'] '.$e->getMessage());
         }
     }
 
@@ -386,12 +332,13 @@ abstract class EccubeTestCase extends WebTestCase
      * MailCatcher のメッセージをすべて取得する.
      *
      * @return array MailCatcher のメッセージの配列
+     *
+     * @deprecated
      */
     protected function getMailCatcherMessages()
     {
-        $client = new Client();
-        $request = $client->get(self::MAILCATCHER_URL.'messages');
-        $response = $request->send();
+        $httpClient = new HttpClient();
+        $response = $httpClient->get(self::MAILCATCHER_URL.'messages');
 
         return json_decode($response->getBody(true));
     }
@@ -400,13 +347,15 @@ abstract class EccubeTestCase extends WebTestCase
      * MailCatcher のメッセージを ID を指定して取得する.
      *
      * @param integer $id メッセージの ID
+     *
      * @return object MailCatcher のメッセージ
+     *
+     * @deprecated
      */
     protected function getMailCatcherMessage($id)
     {
-        $client = new Client();
-        $request = $client->get(self::MAILCATCHER_URL.'messages/'.$id.'.json');
-        $response = $request->send();
+        $httpClient = new HttpClient();
+        $response = $httpClient->get(self::MAILCATCHER_URL.'messages/'.$id.'.json');
 
         return json_decode($response->getBody(true));
     }
@@ -415,7 +364,10 @@ abstract class EccubeTestCase extends WebTestCase
      * MailCatcher のメッセージソースをデコードする.
      *
      * @param object $Message MailCatcher のメッセージ
+     *
      * @return string デコードされた eml 形式のソース
+     *
+     * @deprecated
      */
     protected function parseMailCatcherSource($Message)
     {
@@ -423,16 +375,54 @@ abstract class EccubeTestCase extends WebTestCase
     }
 
     /**
-     * in the case of sqlite in-memory database.
+     * Get the MailCollector
+     *
+     * @param boolean $sendRequest True to send requests internally.
+     *
+     * @return MessageDataCollector
      */
-    protected function isSqliteInMemory()
+    protected function getMailCollector($sendRequest = true)
     {
-        if (array_key_exists('memory', $this->app['config']['database'])
-            && $this->app['config']['database']['memory']
-        ) {
-            return true;
+        if ($sendRequest) {
+            $this->client->enableProfiler();
+            $this->client->request('POST', '/');
         }
 
-        return false;
+        return $this->client->getProfile()->getCollector('swiftmailer');
+    }
+
+    /**
+     * Generates a URL from the given parameters.
+     *
+     * @param string $route         The name of the route
+     * @param array  $parameters    An array of parameters
+     * @param int    $referenceType The type of reference (one of the constants in UrlGeneratorInterface)
+     *
+     * @return string The generated URL
+     *
+     * @see UrlGeneratorInterface
+     * @see \Symfony\Bundle\FrameworkBundle\Controller\ControllerTrait::generateUrl
+     */
+    protected function generateUrl($route, $parameters = [], $referenceType = UrlGeneratorInterface::ABSOLUTE_PATH)
+    {
+        return $this->container->get('router')->generate($route, $parameters, $referenceType);
+    }
+
+    /**
+     * Returns a CSRF token for the given ID.
+     *
+     * If previously no token existed for the given ID.
+     * ATTENTION: Call this function before login.
+     *
+     * @param string $csrfTokenId The token ID (e.g. `authenticate`, `<FormTypeBlockPrefix>`)
+     *
+     * @return CsrfToken The CSRF token
+     *
+     * @see \Symfony\Component\Security\Csrf\CsrfTokenManagerInterface
+     * @see https://stackoverflow.com/a/38661340/4956633
+     */
+    protected function getCsrfToken($csrfTokenId)
+    {
+        return $this->container->get('security.csrf.token_manager')->getToken($csrfTokenId);
     }
 }

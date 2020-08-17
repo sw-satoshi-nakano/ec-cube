@@ -1,23 +1,53 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Doctrine\Common\CsvDataFixtures;
 
 use Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture;
 use Eccube\Tests\EccubeTestCase;
+use Eccube\Repository\Master\JobRepository;
 
 class CsvFixtureTest extends EccubeTestCase
 {
-
+    /**
+     * @var CsvFixture
+     */
     protected $fixture;
+
+    /**
+     * @var \SplFileObject
+     */
     protected $file;
 
-    public function setUp() {
+    /**
+     * @var JobRepository
+     */
+    protected $jobRepository;
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setUp()
+    {
         parent::setUp();
-        $Jobs = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Job')->findAll();
+
+        $this->jobRepository = $this->container->get(JobRepository::class);
+
+        $Jobs = $this->jobRepository->findAll();
         foreach ($Jobs as $Job) {
-            $this->app['orm.em']->remove($Job);
+            $this->entityManager->remove($Job);
         }
-        $this->app['orm.em']->flush();
+        $this->entityManager->flush();
 
         $this->file = new \SplFileObject(
             __DIR__.'/../../../../../Fixtures/import_csv/mtb_job.csv'
@@ -27,7 +57,7 @@ class CsvFixtureTest extends EccubeTestCase
 
     public function testNewInstance()
     {
-        $this->assertInstanceOf('Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture', $this->fixture);
+        $this->assertInstanceOf(CsvFixture::class, $this->fixture);
     }
 
     public function testGetSql()
@@ -35,7 +65,7 @@ class CsvFixtureTest extends EccubeTestCase
         $this->file->setFlags(\SplFileObject::READ_CSV | \SplFileObject::READ_AHEAD | \SplFileObject::SKIP_EMPTY);
         $headers = $this->file->current();
 
-        $this->expected = 'INSERT INTO mtb_job (id, name, rank) VALUES (?, ?, ?)';
+        $this->expected = 'INSERT INTO mtb_job (id, name, sort_no, discriminator_type) VALUES (?, ?, ?, ?)';
         $this->actual = $this->fixture->getSql('mtb_job', $headers);
         $this->verify();
     }
@@ -48,22 +78,22 @@ class CsvFixtureTest extends EccubeTestCase
         $this->file->next();
 
         // ファイルのデータ行を取得しておく
-        $rows = array();
-        while(!$this->file->eof()) {
+        $rows = [];
+        while (!$this->file->eof()) {
             $rows[] = $this->file->current();
             $this->file->next();
         }
 
         $this->file->rewind();
-        $this->fixture->load($this->app['orm.em']);
-        $Jobs = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Job')->findAll();
+        $this->fixture->load($this->entityManager);
+        $Jobs = $this->jobRepository->findAll();
 
         $this->expected = count($rows);
         $this->actual = count($Jobs);
         $this->verify('行数は一致するか？');
         foreach ($Jobs as $key => $Job) {
             $this->expected = $rows[$key][0].', '.$rows[$key][1].', '.$rows[$key][2];
-            $this->actual = $Job->getId().', '.$Job->getName().', '.$Job->getRank();
+            $this->actual = $Job->getId().', '.$Job->getName().', '.$Job->getSortNo();
             $this->verify($key.'行目のデータは一致するか？');
         }
     }

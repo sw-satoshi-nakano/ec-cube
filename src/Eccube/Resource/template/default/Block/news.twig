@@ -1,72 +1,87 @@
 {#
 This file is part of EC-CUBE
 
-Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
 
-http://www.lockon.co.jp/
+http://www.ec-cube.co.jp/
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
 #}
-<script type="text/javascript">
-$(function(){
-    $(".newslist").each(function(){
-        var listLenght = $(this).find("dl").length;
-        if(listLenght>5){
-            $(this).find("dl:gt(4)").each(function(){$(this).hide();});
-            $(this).append('<a id="news_readmore">» もっと見る</a>');
-            var dispNum = 5;
-            $(this).find("#news_readmore").click(function(){
-                dispNum +=5;
-                $(this).parent().find("dl:lt("+dispNum+")").show(400);
-                if (dispNum>=listLenght) {
-                    $(this).hide();
+{% set NewsList = repository('Eccube\\Entity\\News').getList() %}
+
+{% block javascript %}
+    <script>
+        $(function() {
+            $('.ec-newsRole__news').each(function() {
+                var listLength = $(this).find('.ec-newsRole__newsItem').length;
+                if (listLength > 5) {
+                    $(this).find('.ec-newsRole__newsItem:gt(4)').each(function() {
+                        $(this).hide();
+                    });
+                    $(this).append('<a id="news_readmore" class="ec-inlineBtn--top">{{ 'front.block.news.read_more'|trans }}</a>');
+                    var dispNum = 5;
+                    $(this).find('#news_readmore').click(function() {
+                        dispNum += 5;
+                        $(this).parent().find('.ec-newsRole__newsItem:lt(' + dispNum + ')').show();
+                        if (dispNum >= listLength) {
+                            $(this).hide();
+                        }
+                    })
                 }
-            })
-        }
-    });
-});
-</script>
-<div class="col-sm-9 news_contents">
-    <div id="news_area">
-        <h2 class="heading01">新着情報</h2>
-        <div class="accordion">
-            <div class="newslist">
+            });
 
-                {% for News in NewsList %}
-                <dl>
-                    <dt>
-                        <span class="date">{{ News.date|date("Y/m/d") }}</span>
-                        <span class="news_title">
-                            {{ News.title }}
-                        </span>
-                        {% if News.comment or News.url %}
-                        <span class="angle-circle"><svg class="cb cb-angle-down"><use xlink:href="#cb-angle-down" /></svg></span>
+            $('.ec-newsRole__newsHeading').on('click', function() {
+                $newsItem = $(this).parent('.ec-newsRole__newsItem');
+                $newsDescription = $newsItem.children('.ec-newsRole__newsDescription');
+                if ($newsDescription.css('display') == 'none') {
+                    $newsItem.addClass('is_active');
+                    $newsDescription.slideDown(300);
+                } else {
+                    $newsItem.removeClass('is_active');
+                    $newsDescription.slideUp(300);
+                }
+                return false;
+            });
+        });
+    </script>
+{% endblock %}
+<div class="ec-role">
+    <div class="ec-newsRole">
+        <div class="ec-secHeading">
+            <span class="ec-secHeading__en">{{ 'front.block.news.title__en'|trans }}</span>
+            <span class="ec-secHeading__line"></span>
+            <span class="ec-secHeading__ja">{{ 'front.block.news.title__ja'|trans }}</span>
+        </div>
+        <div class="ec-newsRole__news">
+            {% for News in NewsList %}
+                <div class="ec-newsRole__newsItem">
+                    <div class="ec-newsRole__newsHeading">
+                        <div class="ec-newsRole__newsDate">
+                            {{ News.publish_date|date_day }}
+                        </div>
+                        <div class="ec-newsRole__newsColumn">
+                            <div class="ec-newsRole__newsTitle">
+                                {{ News.title }}
+                            </div>
+                            {% if News.description or News.url %}
+                                <div class="ec-newsRole__newsClose">
+                                    <a class="ec-newsRole__newsCloseBtn">
+                                        <i class="fas fa-angle-down"></i>
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="ec-newsRole__newsDescription">
+                        {{ News.description|raw|nl2br }}
+                        {% if News.url %}
+                            <br>
+                            <a href="{{ News.url }}" {% if News.link_method == '1' %}target="_blank"{% endif %}>{{ 'front.block.news.see_details'|trans }}</a>
                         {% endif %}
-                    </dt>
-                    {% if News.comment or News.url %}
-                    <dd>{{ News.comment|raw|nl2br}}
-                        {% if News.url %}<br>
-                        <a href="{{ News.url }}" {% if News.link_method == '1' %}target="_blank"{% endif %}>
-                        詳しくはこちら
-                        </a>{% endif %}
-                    </dd>
-                    {% endif %}
-                </dl>
-                {% endfor %}
-
-            </div>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
     </div>
 </div>

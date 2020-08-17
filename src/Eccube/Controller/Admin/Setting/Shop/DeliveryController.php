@@ -1,91 +1,170 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Setting\Shop;
 
-use Eccube\Application;
-use Eccube\Common\Constant;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Eccube\Controller\AbstractController;
+use Eccube\Entity\Delivery;
+use Eccube\Entity\DeliveryFee;
+use Eccube\Entity\DeliveryTime;
+use Eccube\Entity\PaymentOption;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Form\Type\Admin\DeliveryType;
+use Eccube\Repository\DeliveryFeeRepository;
+use Eccube\Repository\DeliveryRepository;
+use Eccube\Repository\DeliveryTimeRepository;
+use Eccube\Repository\Master\PrefRepository;
+use Eccube\Repository\Master\SaleTypeRepository;
+use Eccube\Repository\PaymentOptionRepository;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\Routing\Annotation\Route;
 
+/**
+ * Class DeliveryController
+ */
 class DeliveryController extends AbstractController
 {
-    private $main_title;
-    private $sub_title;
+    /**
+     * @var PaymentOptionRepository
+     */
+    protected $paymentOptionRepository;
 
-    public $form;
+    /**
+     * @var DeliveryFeeRepository
+     */
+    protected $deliveryFeeRepository;
 
-    public function __construct()
+    /**
+     * @var PrefRepository
+     */
+    protected $prefRepository;
+
+    /**
+     * @var DeliveryRepository
+     */
+    protected $deliveryRepository;
+
+    /**
+     * @var DeliveryTimeRepository
+     */
+    protected $deliveryTimeRepository;
+
+    /**
+     * @var DeliveryTimeRepository
+     */
+    protected $saleTypeRepository;
+
+    /**
+     * DeliveryController constructor.
+     *
+     * @param PaymentOptionRepository $paymentOptionRepository
+     * @param DeliveryFeeRepository $deliveryFeeRepository
+     * @param PrefRepository $prefRepository
+     * @param DeliveryRepository $deliveryRepository
+     */
+    public function __construct(PaymentOptionRepository $paymentOptionRepository, DeliveryFeeRepository $deliveryFeeRepository, PrefRepository $prefRepository, DeliveryRepository $deliveryRepository, DeliveryTimeRepository $deliveryTimeRepository, SaleTypeRepository $saleTypeRepository)
     {
+        $this->paymentOptionRepository = $paymentOptionRepository;
+        $this->deliveryFeeRepository = $deliveryFeeRepository;
+        $this->prefRepository = $prefRepository;
+        $this->deliveryRepository = $deliveryRepository;
+        $this->deliveryTimeRepository = $deliveryTimeRepository;
+        $this->saleTypeRepository = $saleTypeRepository;
     }
 
-    public function index(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/delivery", name="admin_setting_shop_delivery")
+     * @Template("@admin/Setting/Shop/delivery.twig")
+     */
+    public function index(Request $request)
     {
-        $Deliveries = $app['eccube.repository.delivery']
-            ->findBy(
-                array('del_flg' => 0),
-                array('rank' => 'DESC')
-            );
+        $Deliveries = $this->deliveryRepository
+            ->findBy([], ['sort_no' => 'DESC']);
 
         $event = new EventArgs(
-            array(
+            [
                 'Deliveries' => $Deliveries,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_INDEX_COMPLETE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_INDEX_COMPLETE, $event);
 
-        return $app->render('Setting/Shop/delivery.twig', array(
+        return [
             'Deliveries' => $Deliveries,
-        ));
+        ];
     }
 
-    public function edit(Application $app, Request $request, $id = 0)
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/delivery/new", name="admin_setting_shop_delivery_new")
+     * @Route("/%eccube_admin_route%/setting/shop/delivery/{id}/edit", requirements={"id" = "\d+"}, name="admin_setting_shop_delivery_edit")
+     * @Template("@admin/Setting/Shop/delivery_edit.twig")
+     */
+    public function edit(Request $request, $id = null)
     {
-        /* @var $Delivery \Eccube\Entity\Delivery */
-        $Delivery = $app['eccube.repository.delivery']
-            ->findOrCreate($id);
+        if (is_null($id)) {
+            $SaleType = $this->saleTypeRepository->findOneBy([], ['sort_no' => 'ASC']);
+            $Delivery = $this->deliveryRepository->findOneBy([], ['sort_no' => 'DESC']);
+
+            $sortNo = 1;
+            if ($Delivery) {
+                $sortNo = $Delivery->getSortNo() + 1;
+            }
+
+            $Delivery = new Delivery();
+            $Delivery
+                ->setSortNo($sortNo)
+                ->setVisible(true)
+                ->setSaleType($SaleType);
+        } else {
+            $Delivery = $this->deliveryRepository->find($id);
+        }
+
+        $originalDeliveryTimes = new ArrayCollection();
+
+        foreach ($Delivery->getDeliveryTimes() as $deliveryTime) {
+            $originalDeliveryTimes->add($deliveryTime);
+        }
 
         // FormType: DeliveryFeeの生成
-        $Prefs = $app['eccube.repository.master.pref']
+        $Prefs = $this->prefRepository
             ->findAll();
 
         foreach ($Prefs as $Pref) {
-            $DeliveryFee = $app['eccube.repository.delivery_fee']
-                ->findOrCreate(array(
-                    'Delivery' => $Delivery,
-                    'Pref' => $Pref,
-                ));
+            $DeliveryFee = $this->deliveryFeeRepository
+                ->findOneBy(
+                    [
+                        'Delivery' => $Delivery,
+                        'Pref' => $Pref,
+                    ]
+                );
+            if (!$DeliveryFee) {
+                $DeliveryFee = new DeliveryFee();
+                $DeliveryFee
+                    ->setPref($Pref)
+                    ->setDelivery($Delivery);
+            }
             if (!$DeliveryFee->getFee()) {
                 $Delivery->addDeliveryFee($DeliveryFee);
             }
         }
 
         $DeliveryFees = $Delivery->getDeliveryFees();
-        $DeliveryFeesIndex = array();
+        $DeliveryFeesIndex = [];
         foreach ($DeliveryFees as $DeliveryFee) {
             $Delivery->removeDeliveryFee($DeliveryFee);
             $DeliveryFeesIndex[$DeliveryFee->getPref()->getId()] = $DeliveryFee;
@@ -95,33 +174,24 @@ class DeliveryController extends AbstractController
             $Delivery->addDeliveryFee($DeliveryFee);
         }
 
-        // FormType: DeliveryTimeの生成
-        $DeliveryTimes = $Delivery->getDeliveryTimes();
-        $loop = 16 - count($DeliveryTimes);
-        for ($i = 1; $i <= $loop; $i++) {
-            $DeliveryTime = new \Eccube\Entity\DeliveryTime();
-            $DeliveryTime->setDelivery($Delivery);
-            $Delivery->addDeliveryTime($DeliveryTime);
-        }
-
-        $builder = $app['form.factory']
-            ->createBuilder('delivery', $Delivery);
+        $builder = $this->formFactory
+            ->createBuilder(DeliveryType::class, $Delivery);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
                 'Delivery' => $Delivery,
                 'Prefs' => $Prefs,
                 'DeliveryFees' => $DeliveryFees,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_EDIT_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_EDIT_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
         // 支払方法をセット
-        $Payments = array();
+        $Payments = [];
         foreach ($Delivery->getPaymentOptions() as $PaymentOption) {
             $Payments[] = $PaymentOption->getPayment();
         }
@@ -130,130 +200,168 @@ class DeliveryController extends AbstractController
         $form['payments']->setData($Payments);
 
         // 登録ボタン押下
-        if ($app['request']->getMethod() === 'POST') {
-            $form->handleRequest($app['request']);
+        if ($request->getMethod() === 'POST') {
+            $form->handleRequest($request);
 
             if ($form->isValid()) {
                 $DeliveryData = $form->getData();
 
                 // 配送時間の登録
-                $DeliveryTimes = $form['delivery_times']->getData();
-                foreach ($DeliveryTimes as $DeliveryTime) {
-                    if (is_null($DeliveryTime->getDeliveryTime())) {
-                        $Delivery->removeDeliveryTime($DeliveryTime);
-                        $app['orm.em']->remove($DeliveryTime);
+                /** @var DeliveryTime $DeliveryTime */
+                foreach ($originalDeliveryTimes as $DeliveryTime) {
+                    if (false === $Delivery->getDeliveryTimes()->contains($DeliveryTime)) {
+                        $this->entityManager->remove($DeliveryTime);
                     }
+                }
+                foreach ($DeliveryData['DeliveryTimes'] as $DeliveryTime) {
+                    $DeliveryTime->setDelivery($Delivery);
                 }
 
                 // お支払いの登録
-                $PaymentOptions = $app['eccube.repository.payment_option']
-                    ->findBy(array('delivery_id' => $id));
+                $PaymentOptions = $this->paymentOptionRepository
+                    ->findBy(['delivery_id' => $Delivery->getId()]);
                 // 消す
                 foreach ($PaymentOptions as $PaymentOption) {
                     $DeliveryData->removePaymentOption($PaymentOption);
-                    $app['orm.em']->remove($PaymentOption);
+                    $this->entityManager->remove($PaymentOption);
                 }
-                $app['orm.em']->persist($DeliveryData);
-                $app['orm.em']->flush();
+                $this->entityManager->persist($DeliveryData);
+                $this->entityManager->flush();
 
                 // いれる
                 $PaymentsData = $form->get('payments')->getData();
                 foreach ($PaymentsData as $PaymentData) {
-                    $PaymentOption = new \Eccube\Entity\PaymentOption();
+                    $PaymentOption = new PaymentOption();
                     $PaymentOption
                         ->setPaymentId($PaymentData->getId())
                         ->setPayment($PaymentData)
                         ->setDeliveryId($DeliveryData->getId())
                         ->setDelivery($DeliveryData);
                     $DeliveryData->addPaymentOption($PaymentOption);
-                    $app['orm.em']->persist($DeliveryData);
+                    $this->entityManager->persist($DeliveryData);
                 }
 
-                $app['orm.em']->persist($DeliveryData);
+                $this->entityManager->persist($DeliveryData);
 
-                $app['orm.em']->flush();
+                $this->entityManager->flush();
 
                 $event = new EventArgs(
-                    array(
+                    [
                         'form' => $form,
                         'Delivery' => $Delivery,
                         'Prefs' => $Prefs,
                         'DeliveryFees' => $DeliveryFees,
-                    ),
+                    ],
                     $request
                 );
-                $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_EDIT_COMPLETE, $event);
+                $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_EDIT_COMPLETE, $event);
 
-                $app->addSuccess('admin.register.complete', 'admin');
+                $this->addSuccess('admin.common.save_complete', 'admin');
 
-                return $app->redirect($app->url('admin_setting_shop_delivery'));
+                return $this->redirectToRoute('admin_setting_shop_delivery_edit', ['id' => $Delivery->getId()]);
             }
         }
-        return $app->render('Setting/Shop/delivery_edit.twig', array(
+
+        return [
             'form' => $form->createView(),
-            'delivery_id' => $id,
-        ));
+            'delivery_id' => $Delivery->getId(),
+        ];
     }
 
-    public function delete(Application $app, Request $request, $id)
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/delivery/{id}/delete", requirements={"id" = "\d+"}, name="admin_setting_shop_delivery_delete", methods={"DELETE"})
+     */
+    public function delete(Request $request, Delivery $Delivery)
     {
-        $this->isTokenValid($app);
+        $this->isTokenValid();
 
-        $repo = $app['eccube.repository.delivery'];
-        $Delivery = $repo->find($id);
-        if (!$Delivery) {
-            $app->deleteMessage();
-            return $app->redirect($app->url('admin_setting_shop_delivery'));
+        try {
+            $this->entityManager->remove($Delivery);
+            $this->entityManager->flush();
+        } catch (ForeignKeyConstraintViolationException $e) {
+            $this->addError(trans('admin.common.delete_error_foreign_key', ['%name%' => $Delivery->getName()]), 'admin');
+
+            return $this->redirectToRoute('admin_setting_shop_delivery');
         }
 
-        $Delivery
-            ->setDelFlg(Constant::ENABLED)
-            ->setRank(0);
+        $sortNo = 1;
+        $Delivs = $this->deliveryRepository
+            ->findBy([], ['sort_no' => 'ASC']);
 
-        $app['orm.em']->persist($Delivery);
-
-        $rank = 1;
-        $Delivs = $repo
-            ->findBy(
-                array('del_flg' => Constant::DISABLED),
-                array('rank' => 'ASC')
-            );
         foreach ($Delivs as $Deliv) {
-            if ($Deliv->getId() != $id) {
-                $Deliv->setRank($rank);
-                $rank++;
+            if ($Deliv->getId() != $Delivery->getId()) {
+                $Deliv->setSortNo($sortNo);
+                $sortNo++;
             }
         }
 
-        $app['orm.em']->flush();
+        $this->entityManager->flush();
 
         $event = new EventArgs(
-            array(
+            [
                 'Delivs' => $Delivs,
                 'Delivery' => $Delivery,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_DELETE_COMPLETE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_DELETE_COMPLETE, $event);
 
-        $app->addSuccess('admin.delete.complete', 'admin');
+        $this->addSuccess('admin.common.delete_complete', 'admin');
 
-        return $app->redirect($app->url('admin_setting_shop_delivery'));
+        return $this->redirectToRoute('admin_setting_shop_delivery');
     }
 
-    public function moveRank(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/delivery/{id}/visibility", requirements={"id" = "\d+"}, name="admin_setting_shop_delivery_visibility", methods={"PUT"})
+     */
+    public function visibility(Request $request, Delivery $Delivery)
     {
-        if ($request->isXmlHttpRequest()) {
-            $ranks = $request->request->all();
-            foreach ($ranks as $deliveryId => $rank) {
-                $Delivery = $app['eccube.repository.delivery']
-                    ->find($deliveryId);
-                $Delivery->setRank($rank);
-                $app['orm.em']->persist($Delivery);
-            }
-            $app['orm.em']->flush();
+        $this->isTokenValid();
+
+        // 表示・非表示を切り替える
+        if ($Delivery->isVisible()) {
+            $message = trans('admin.common.to_hide_complete', ['%name%' => $Delivery->getName()]);
+            $Delivery->setVisible(false);
+        } else {
+            $message = trans('admin.common.to_show_complete', ['%name%' => $Delivery->getName()]);
+            $Delivery->setVisible(true);
+        }
+        $this->entityManager->persist($Delivery);
+
+        $this->entityManager->flush();
+
+        $event = new EventArgs(
+            [
+                'Delivery' => $Delivery,
+            ],
+            $request
+        );
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SHOP_DELIVERY_VISIBILITY_COMPLETE, $event);
+
+        $this->addSuccess($message, 'admin');
+
+        return $this->redirectToRoute('admin_setting_shop_delivery');
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/setting/shop/delivery/sort_no/move", name="admin_setting_shop_delivery_sort_no_move", methods={"POST"})
+     */
+    public function moveSortNo(Request $request)
+    {
+        if (!$request->isXmlHttpRequest()) {
+            throw new BadRequestHttpException();
         }
 
-        return true;
+        if ($this->isTokenValid()) {
+            $sortNos = $request->request->all();
+            foreach ($sortNos as $deliveryId => $sortNo) {
+                $Delivery = $this->deliveryRepository->find($deliveryId);
+                $Delivery->setSortNo($sortNo);
+                $this->entityManager->persist($Delivery);
+            }
+            $this->entityManager->flush();
+        }
+
+        return $this->json('OK', 200);
     }
 }

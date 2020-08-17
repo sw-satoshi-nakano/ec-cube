@@ -1,148 +1,141 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Controller\Admin\Customer;
 
-use Eccube\Application;
-use Eccube\Common\Constant;
 use Eccube\Controller\AbstractController;
+use Eccube\Entity\Master\CustomerStatus;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Form\Type\Admin\CustomerType;
+use Eccube\Repository\CustomerRepository;
+use Eccube\Util\StringUtil;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
 
 class CustomerEditController extends AbstractController
 {
-    public function index(Application $app, Request $request, $id = null)
+    /**
+     * @var CustomerRepository
+     */
+    protected $customerRepository;
+
+    /**
+     * @var EncoderFactoryInterface
+     */
+    protected $encoderFactory;
+
+    public function __construct(
+        CustomerRepository $customerRepository,
+        EncoderFactoryInterface $encoderFactory
+    ) {
+        $this->customerRepository = $customerRepository;
+        $this->encoderFactory = $encoderFactory;
+    }
+
+    /**
+     * @Route("/%eccube_admin_route%/customer/new", name="admin_customer_new")
+     * @Route("/%eccube_admin_route%/customer/{id}/edit", requirements={"id" = "\d+"}, name="admin_customer_edit")
+     * @Template("@admin/Customer/edit.twig")
+     */
+    public function index(Request $request, $id = null)
     {
-        $app['orm.em']->getFilters()->enable('incomplete_order_status_hidden');
+        $this->entityManager->getFilters()->enable('incomplete_order_status_hidden');
         // 編集
         if ($id) {
-            $Customer = $app['orm.em']
-                ->getRepository('Eccube\Entity\Customer')
+            $Customer = $this->customerRepository
                 ->find($id);
 
             if (is_null($Customer)) {
                 throw new NotFoundHttpException();
             }
+
+            $oldStatusId = $Customer->getStatus()->getId();
             // 編集用にデフォルトパスワードをセット
             $previous_password = $Customer->getPassword();
-            $Customer->setPassword($app['config']['default_password']);
-            // 新規登録
+            $Customer->setPassword($this->eccubeConfig['eccube_default_password']);
+        // 新規登録
         } else {
-            $Customer = $app['eccube.repository.customer']->newCustomer();
-            $CustomerAddress = new \Eccube\Entity\CustomerAddress();
-            $Customer->setBuyTimes(0);
-            $Customer->setBuyTotal(0);
+            $Customer = $this->customerRepository->newCustomer();
+
+            $oldStatusId = null;
         }
 
         // 会員登録フォーム
-        $builder = $app['form.factory']
-            ->createBuilder('admin_customer', $Customer);
+        $builder = $this->formFactory
+            ->createBuilder(CustomerType::class, $Customer);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
                 'Customer' => $Customer,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_CUSTOMER_EDIT_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_CUSTOMER_EDIT_INDEX_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            log_info('会員登録開始', [$Customer->getId()]);
 
-            log_info('会員登録開始', array($Customer->getId()));
+            $encoder = $this->encoderFactory->getEncoder($Customer);
 
-            if ($Customer->getId() === null) {
-                $Customer->setSalt(
-                    $app['eccube.repository.customer']->createSalt(5)
-                );
-                $Customer->setSecretKey(
-                    $app['eccube.repository.customer']->getUniqueSecretKey($app)
-                );
-
-                $CustomerAddress->setName01($Customer->getName01())
-                    ->setName02($Customer->getName02())
-                    ->setKana01($Customer->getKana01())
-                    ->setKana02($Customer->getKana02())
-                    ->setCompanyName($Customer->getCompanyName())
-                    ->setZip01($Customer->getZip01())
-                    ->setZip02($Customer->getZip02())
-                    ->setZipcode($Customer->getZip01().$Customer->getZip02())
-                    ->setPref($Customer->getPref())
-                    ->setAddr01($Customer->getAddr01())
-                    ->setAddr02($Customer->getAddr02())
-                    ->setTel01($Customer->getTel01())
-                    ->setTel02($Customer->getTel02())
-                    ->setTel03($Customer->getTel03())
-                    ->setFax01($Customer->getFax01())
-                    ->setFax02($Customer->getFax02())
-                    ->setFax03($Customer->getFax03())
-                    ->setDelFlg(Constant::DISABLED)
-                    ->setCustomer($Customer);
-
-                $app['orm.em']->persist($CustomerAddress);
-            }
-
-            if ($Customer->getPassword() === $app['config']['default_password']) {
+            if ($Customer->getPassword() === $this->eccubeConfig['eccube_default_password']) {
                 $Customer->setPassword($previous_password);
             } else {
                 if ($Customer->getSalt() === null) {
-                    $Customer->setSalt($app['eccube.repository.customer']->createSalt(5));
+                    $Customer->setSalt($encoder->createSalt());
+                    $Customer->setSecretKey($this->customerRepository->getUniqueSecretKey());
                 }
-                $Customer->setPassword(
-                    $app['eccube.repository.customer']->encryptPassword($app, $Customer)
-                );
+                $Customer->setPassword($encoder->encodePassword($Customer->getPassword(), $Customer->getSalt()));
             }
 
-            $app['orm.em']->persist($Customer);
-            $app['orm.em']->flush();
+            // 退会ステータスに更新の場合、ダミーのアドレスに更新
+            $newStatusId = $Customer->getStatus()->getId();
+            if ($oldStatusId != $newStatusId && $newStatusId == CustomerStatus::WITHDRAWING) {
+                $Customer->setEmail(StringUtil::random(60).'@dummy.dummy');
+            }
 
-            log_info('会員登録完了', array($Customer->getId()));
+            $this->entityManager->persist($Customer);
+            $this->entityManager->flush();
+
+            log_info('会員登録完了', [$Customer->getId()]);
 
             $event = new EventArgs(
-                array(
+                [
                     'form' => $form,
                     'Customer' => $Customer,
-                ),
+                ],
                 $request
             );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_CUSTOMER_EDIT_INDEX_COMPLETE, $event);
+            $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_CUSTOMER_EDIT_INDEX_COMPLETE, $event);
 
-            $app->addSuccess('admin.customer.save.complete', 'admin');
+            $this->addSuccess('admin.common.save_complete', 'admin');
 
-            return $app->redirect($app->url('admin_customer_edit', array(
+            return $this->redirectToRoute('admin_customer_edit', [
                 'id' => $Customer->getId(),
-            )));
+            ]);
         }
 
-        return $app->render('Customer/edit.twig', array(
+        return [
             'form' => $form->createView(),
             'Customer' => $Customer,
-        ));
+        ];
     }
 }

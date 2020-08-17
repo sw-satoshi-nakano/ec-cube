@@ -1,30 +1,17 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Service;
-
-use Eccube\Application;
-
 
 /**
  * Copyright (C) 2012-2014 David de Boer <david@ddeboer.nl>
@@ -49,7 +36,6 @@ use Eccube\Application;
  */
 class CsvImportService implements \Iterator, \SeekableIterator, \Countable
 {
-
     const DUPLICATE_HEADERS_INCREMENT = 1;
     const DUPLICATE_HEADERS_MERGE = 2;
 
@@ -72,7 +58,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      *
      * @var array
      */
-    protected $columnHeaders = array();
+    protected $columnHeaders = [];
 
     /**
      * Number of column headers, stored and re-used for performance
@@ -95,7 +81,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      *
      * @var array
      */
-    protected $errors = array();
+    protected $errors = [];
 
     /**
      * How to handle duplicate headers
@@ -103,7 +89,6 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      * @var integer
      */
     protected $duplicateHeadersFlag;
-
 
     /**
      * @param \SplFileObject $file
@@ -161,8 +146,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
             } else {
                 return $line;
             }
-
-        };
+        }
 
         return null;
     }
@@ -199,6 +183,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      *                        - CsvReader::DUPLICATE_HEADERS_MERGE; merges
      *                        values for duplicate headers into an array
      *                        (dup => [value1, value2, value3])
+     *
      * @return boolean
      */
     public function setHeaderRowNumber($rowNumber, $duplicates = null)
@@ -211,6 +196,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
             return false;
         }
         $this->setColumnHeaders($headers);
+
         return true;
     }
 
@@ -331,7 +317,6 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      * @param integer $rowNumber Row number
      *
      * @return array
-     *
      */
     protected function readHeaderRow($rowNumber)
     {
@@ -357,12 +342,12 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      */
     protected function incrementHeaders(array $headers)
     {
-        $incrementedHeaders = array();
+        $incrementedHeaders = [];
         foreach (array_count_values($headers) as $header => $count) {
             if ($count > 1) {
                 $incrementedHeaders[] = $header;
                 for ($i = 1; $i < $count; $i++) {
-                    $incrementedHeaders[] = $header . $i;
+                    $incrementedHeaders[] = $header.$i;
                 }
             } else {
                 $incrementedHeaders[] = $header;
@@ -388,7 +373,7 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      */
     protected function mergeDuplicates(array $line)
     {
-        $values = array();
+        $values = [];
 
         $i = 0;
         foreach ($this->columnHeaders as $count) {
@@ -410,12 +395,14 @@ class CsvImportService implements \Iterator, \SeekableIterator, \Countable
      * Windows 版 PHP7 環境では、ファイルエンコーディングが CP932 になるため UTF-8 に変換する.
      * それ以外の環境では何もしない。
      */
-    protected function convertEncodingRows($row) {
+    protected function convertEncodingRows($row)
+    {
         if ('\\' === DIRECTORY_SEPARATOR && PHP_VERSION_ID >= 70000) {
             foreach ($row as &$col) {
-                $col = mb_convert_encoding($col , 'UTF-8', 'SJIS-win');
+                $col = mb_convert_encoding($col, 'UTF-8', 'SJIS-win');
             }
         }
+
         return $row;
     }
 }

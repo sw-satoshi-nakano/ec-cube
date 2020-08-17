@@ -1,186 +1,179 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Entity;
 
-/**
- * CustomerFavoriteProduct
- */
-class CustomerFavoriteProduct extends \Eccube\Entity\AbstractEntity
-{
-    /**
-     * @var integer
-     */
-    private $id;
+use Doctrine\ORM\Mapping as ORM;
 
+if (!class_exists('\Eccube\Entity\CustomerFavoriteProduct')) {
     /**
-     * @var \DateTime
-     */
-    private $create_date;
-
-    /**
-     * @var \DateTime
-     */
-    private $update_date;
-
-    /**
-     * @var integer
-     */
-    private $del_flg;
-
-    /**
-     * @var \Eccube\Entity\Customer
-     */
-    private $Customer;
-
-    /**
-     * @var \Eccube\Entity\Product
-     */
-    private $Product;
-
-    /**
-     * Get id
+     * CustomerFavoriteProduct
      *
-     * @return integer
+     * @ORM\Table(name="dtb_customer_favorite_product")
+     * @ORM\InheritanceType("SINGLE_TABLE")
+     * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+     * @ORM\HasLifecycleCallbacks()
+     * @ORM\Entity(repositoryClass="Eccube\Repository\CustomerFavoriteProductRepository")
      */
-    public function getId ()
+    class CustomerFavoriteProduct extends \Eccube\Entity\AbstractEntity
     {
-        return $this->id;
-    }
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="IDENTITY")
+         */
+        private $id;
 
-    /**
-     * Set create_date
-     *
-     * @param  \DateTime               $createDate
-     * @return CustomerFavoriteProduct
-     */
-    public function setCreateDate($createDate)
-    {
-        $this->create_date = $createDate;
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="create_date", type="datetimetz")
+         */
+        private $create_date;
 
-        return $this;
-    }
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="update_date", type="datetimetz")
+         */
+        private $update_date;
 
-    /**
-     * Get create_date
-     *
-     * @return \DateTime
-     */
-    public function getCreateDate()
-    {
-        return $this->create_date;
-    }
+        /**
+         * @var \Eccube\Entity\Customer
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Customer", inversedBy="CustomerFavoriteProducts")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="customer_id", referencedColumnName="id")
+         * })
+         */
+        private $Customer;
 
-    /**
-     * Set update_date
-     *
-     * @param  \DateTime               $updateDate
-     * @return CustomerFavoriteProduct
-     */
-    public function setUpdateDate($updateDate)
-    {
-        $this->update_date = $updateDate;
+        /**
+         * @var \Eccube\Entity\Product
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Product", inversedBy="CustomerFavoriteProducts")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="product_id", referencedColumnName="id")
+         * })
+         */
+        private $Product;
 
-        return $this;
-    }
+        /**
+         * Get id.
+         *
+         * @return int
+         */
+        public function getId()
+        {
+            return $this->id;
+        }
 
-    /**
-     * Get update_date
-     *
-     * @return \DateTime
-     */
-    public function getUpdateDate()
-    {
-        return $this->update_date;
-    }
+        /**
+         * Set createDate.
+         *
+         * @param \DateTime $createDate
+         *
+         * @return CustomerFavoriteProduct
+         */
+        public function setCreateDate($createDate)
+        {
+            $this->create_date = $createDate;
 
-    /**
-     * Set del_lfg
-     *
-     * @param  integer $delFlg
-     * @return CustomerFavoriteProduct
-     */
-    public function setDelFlg($delFlg)
-    {
-        $this->del_flg = $delFlg;
+            return $this;
+        }
 
-        return $this;
-    }
+        /**
+         * Get createDate.
+         *
+         * @return \DateTime
+         */
+        public function getCreateDate()
+        {
+            return $this->create_date;
+        }
 
-    /**
-     * Get del_flg
-     *
-     * @return integer
-     */
-    public function getDelFlg()
-    {
-        return $this->del_flg;
-    }
+        /**
+         * Set updateDate.
+         *
+         * @param \DateTime $updateDate
+         *
+         * @return CustomerFavoriteProduct
+         */
+        public function setUpdateDate($updateDate)
+        {
+            $this->update_date = $updateDate;
 
-    /**
-     * Set Customer
-     *
-     * @param  \Eccube\Entity\Customer $customer
-     * @return CustomerFavoriteProduct
-     */
-    public function setCustomer(\Eccube\Entity\Customer $customer = null)
-    {
-        $this->Customer = $customer;
+            return $this;
+        }
 
-        return $this;
-    }
+        /**
+         * Get updateDate.
+         *
+         * @return \DateTime
+         */
+        public function getUpdateDate()
+        {
+            return $this->update_date;
+        }
 
-    /**
-     * Get Customer
-     *
-     * @return \Eccube\Entity\Customer
-     */
-    public function getCustomer()
-    {
-        return $this->Customer;
-    }
+        /**
+         * Set customer.
+         *
+         * @param \Eccube\Entity\Customer|null $customer
+         *
+         * @return CustomerFavoriteProduct
+         */
+        public function setCustomer(\Eccube\Entity\Customer $customer = null)
+        {
+            $this->Customer = $customer;
 
-    /**
-     * Set Product
-     *
-     * @param  \Eccube\Entity\Product  $product
-     * @return CustomerFavoriteProduct
-     */
-    public function setProduct(\Eccube\Entity\Product $product = null)
-    {
-        $this->Product = $product;
+            return $this;
+        }
 
-        return $this;
-    }
+        /**
+         * Get customer.
+         *
+         * @return \Eccube\Entity\Customer|null
+         */
+        public function getCustomer()
+        {
+            return $this->Customer;
+        }
 
-    /**
-     * Get Product
-     *
-     * @return \Eccube\Entity\Product
-     */
-    public function getProduct()
-    {
-        return $this->Product;
+        /**
+         * Set product.
+         *
+         * @param \Eccube\Entity\Product|null $product
+         *
+         * @return CustomerFavoriteProduct
+         */
+        public function setProduct(\Eccube\Entity\Product $product = null)
+        {
+            $this->Product = $product;
+
+            return $this;
+        }
+
+        /**
+         * Get product.
+         *
+         * @return \Eccube\Entity\Product|null
+         */
+        public function getProduct()
+        {
+            return $this->Product;
+        }
     }
 }

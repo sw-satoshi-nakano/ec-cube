@@ -1,11 +1,21 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Doctrine\Common\CsvDataFixtures;
 
 use Doctrine\Common\DataFixtures\FixtureInterface;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
-
 
 /**
  * CSVファイルのローダー.
@@ -14,6 +24,9 @@ use Symfony\Component\Yaml\Yaml;
  */
 class Loader
 {
+    /**
+     * @var CsvFixture[]
+     */
     protected $fixtures;
 
     /**
@@ -22,6 +35,7 @@ class Loader
      * 同一階層に, Fixture のロード順を定義した definition.yml が必要.
      *
      * @param string $dir
+     *
      * @return array fixtures.
      */
     public function loadFromDirectory($dir)
@@ -37,37 +51,36 @@ class Loader
             $finder = Finder::create()
                 ->in($dir)
                 ->name('*.csv');
-        } else {
-            $definition = Yaml::parse(file_get_contents($file));
-            $definition = array_flip($definition);
-
-            $finder = Finder::create()
-                ->in($dir)
-                ->name('*.csv')
-                ->sort(
-                // 定義ファイルに記載の順にソート.
-                    function (\SplFileInfo $a, \SplFileInfo $b) use ($definition) {
-                        if (!isset($definition[$a->getFilename()])) {
-                            throw new \Exception(sprintf('"%s" is undefined in %s', $a->getFilename()));
-                        }
-                        if (!isset($definition[$b->getFilename()])) {
-                            throw new \Exception(sprintf('"%s" is undefined in %s', $b->getFilename()));
-                        }
-
-                        $a_rank = $definition[$a->getFilename()];
-                        $b_rank = $definition[$b->getFilename()];
-
-                        if ($a_rank < $b_rank) {
-                            return -1;
-                        } elseif ($a_rank > $b_rank) {
-                            return 1;
-                        } else {
-                            return 0;
-                        }
-                    }
-                )
-                ->files();
         }
+        $definition = Yaml::parse(file_get_contents($file));
+        $definition = array_flip($definition);
+
+        $finder = Finder::create()
+            ->in($dir)
+            ->name('*.csv')
+            ->sort(
+                // 定義ファイルに記載の順にソート.
+                function (\SplFileInfo $a, \SplFileInfo $b) use ($definition) {
+                    if (!isset($definition[$a->getFilename()])) {
+                        throw new \Exception(sprintf('"%s" is undefined in definition.yml', $a->getFilename()));
+                    }
+                    if (!isset($definition[$b->getFilename()])) {
+                        throw new \Exception(sprintf('"%s" is undefined in definition.yml', $b->getFilename()));
+                    }
+
+                    $a_sortNo = $definition[$a->getFilename()];
+                    $b_sortNo = $definition[$b->getFilename()];
+
+                    if ($a_sortNo < $b_sortNo) {
+                        return -1;
+                    } elseif ($a_sortNo > $b_sortNo) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            )
+            ->files();
 
         return $this->loadFromIterator($finder->getIterator());
     }
@@ -75,18 +88,20 @@ class Loader
     /**
      * Load fixtures from Iterator.
      *
-     * @param \Iterator $Iterator Iterator of \SplFileInfo 
+     * @param \Iterator $Iterator Iterator of \SplFileInfo
+     *
      * @return array fixtures.
      */
     public function loadFromIterator(\Iterator $Iterator)
     {
-        $fixtures = array();
+        $fixtures = [];
         foreach ($Iterator as $fixture) {
             // TODO $fixture が \SplFileInfo ではない場合の対応
             $CsvFixture = new CsvFixture($fixture->openFile());
             $this->addFixture($CsvFixture);
             $fixtures[] = $CsvFixture;
         }
+
         return $fixtures;
     }
 

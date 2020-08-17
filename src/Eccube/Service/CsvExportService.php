@@ -1,43 +1,47 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Service;
 
-use Doctrine\Common\Collections\ArrayCollection;
-use Eccube\Common\Constant;
+use Doctrine\Common\Util\ClassUtils;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\QueryBuilder;
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\Csv;
+use Eccube\Entity\Master\CsvType;
+use Eccube\Form\Type\Admin\SearchCustomerType;
+use Eccube\Form\Type\Admin\SearchOrderType;
+use Eccube\Form\Type\Admin\SearchProductType;
+use Eccube\Repository\CsvRepository;
+use Eccube\Repository\CustomerRepository;
+use Eccube\Repository\Master\CsvTypeRepository;
+use Eccube\Repository\OrderRepository;
+use Eccube\Repository\ProductRepository;
+use Eccube\Repository\ShippingRepository;
 use Eccube\Util\EntityUtil;
+use Eccube\Util\FormUtil;
+use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 class CsvExportService
 {
     /**
-     * @var
+     * @var resource
      */
     protected $fp;
 
     /**
-     * @var
+     * @var boolean
      */
     protected $closed = false;
 
@@ -47,123 +51,165 @@ class CsvExportService
     protected $convertEncodingCallBack;
 
     /**
-     * @var \Doctrine\ORM\EntityManager
+     * @var EntityManagerInterface
      */
-    protected $em;
+    protected $entityManager;
 
     /**
-     * @var \Doctrine\ORM\QueryBuilder;
+     * @var QueryBuilder;
      */
     protected $qb;
 
     /**
-     * @var array
+     * @var EccubeConfig
      */
-    protected $config;
+    protected $eccubeConfig;
 
     /**
-     * @var \Eccube\Entity\Master\CsvType
+     * @var CsvType
      */
     protected $CsvType;
 
     /**
-     * @var \Eccube\Entity\Csv[]
+     * @var Csv[]
      */
     protected $Csvs;
 
     /**
-     * @var \Eccube\Repository\CsvRepository
+     * @var CsvRepository
      */
     protected $csvRepository;
 
     /**
-     * @var \Eccube\Repository\Master\CsvTypeRepository
+     * @var CsvTypeRepository
      */
     protected $csvTypeRepository;
 
     /**
-     * @var \Eccube\Repository\OrderRepository
+     * @var OrderRepository
      */
     protected $orderRepository;
 
     /**
-     * @var \Eccube\Repository\CustomerRepository
+     * @var ShippingRepository
+     */
+    protected $shippingRepository;
+
+    /**
+     * @var CustomerRepository
      */
     protected $customerRepository;
 
     /**
-     * @var \Eccube\Repository\ProductRepository
+     * @var ProductRepository
      */
     protected $productRepository;
+
+    /**
+     * @var FormFactoryInterface
+     */
+    protected $formFactory;
+
+    /**
+     * CsvExportService constructor.
+     *
+     * @param EntityManagerInterface $entityManager
+     * @param CsvRepository $csvRepository
+     * @param CsvTypeRepository $csvTypeRepository
+     * @param OrderRepository $orderRepository
+     * @param CustomerRepository $customerRepository
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(
+        EntityManagerInterface $entityManager,
+        CsvRepository $csvRepository,
+        CsvTypeRepository $csvTypeRepository,
+        OrderRepository $orderRepository,
+        ShippingRepository $shippingRepository,
+        CustomerRepository $customerRepository,
+        ProductRepository $productRepository,
+        EccubeConfig $eccubeConfig,
+        FormFactoryInterface $formFactory
+    ) {
+        $this->entityManager = $entityManager;
+        $this->csvRepository = $csvRepository;
+        $this->csvTypeRepository = $csvTypeRepository;
+        $this->orderRepository = $orderRepository;
+        $this->shippingRepository = $shippingRepository;
+        $this->customerRepository = $customerRepository;
+        $this->eccubeConfig = $eccubeConfig;
+        $this->productRepository = $productRepository;
+        $this->formFactory = $formFactory;
+    }
 
     /**
      * @param $config
      */
     public function setConfig($config)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $config;
     }
 
     /**
-     * @param \Eccube\Repository\CsvRepository $csvRepository
+     * @param CsvRepository $csvRepository
      */
-    public function setCsvRepository(\Eccube\Repository\CsvRepository $csvRepository)
+    public function setCsvRepository(CsvRepository $csvRepository)
     {
         $this->csvRepository = $csvRepository;
     }
 
     /**
-     * @param \Eccube\Repository\Master\CsvTypeRepository $csvTypeRepository
+     * @param CsvTypeRepository $csvTypeRepository
      */
-    public function setCsvTypeRepository(\Eccube\Repository\Master\CsvTypeRepository $csvTypeRepository)
+    public function setCsvTypeRepository(CsvTypeRepository $csvTypeRepository)
     {
         $this->csvTypeRepository = $csvTypeRepository;
     }
 
     /**
-     * @param \Eccube\Repository\OrderRepository $orderRepository
+     * @param OrderRepository $orderRepository
      */
-    public function setOrderRepository(\Eccube\Repository\OrderRepository $orderRepository)
+    public function setOrderRepository(OrderRepository $orderRepository)
     {
         $this->orderRepository = $orderRepository;
     }
 
     /**
-     * @param \Eccube\Repository\CustomerRepository $customerRepository
+     * @param CustomerRepository $customerRepository
      */
-    public function setCustomerRepository(\Eccube\Repository\CustomerRepository $customerRepository)
+    public function setCustomerRepository(CustomerRepository $customerRepository)
     {
         $this->customerRepository = $customerRepository;
     }
 
     /**
-     * @param \Eccube\Repository\ProductRepository $productRepository
+     * @param ProductRepository $productRepository
      */
-    public function setProductRepository(\Eccube\Repository\ProductRepository $productRepository)
+    public function setProductRepository(ProductRepository $productRepository)
     {
         $this->productRepository = $productRepository;
     }
 
     /**
-     * @param \Doctrine\ORM\EntityManager $em
+     * @param EntityManagerInterface $entityManager
      */
-    public function setEntityManager(\Doctrine\ORM\EntityManager $em)
+    public function setEntityManager(EntityManagerInterface $entityManager)
     {
-        $this->em = $em;
+        $this->entityManager = $entityManager;
     }
 
     /**
-     * @return \Doctrine\ORM\EntityManager
+     * @return EntityManagerInterface
      */
     public function getEntityManager()
     {
-        return $this->em;
+        return $this->entityManager;
     }
 
     /**
-     * @param \Doctrine\ORM\QueryBuilder $qb
+     * @param QueryBuilder $qb
      */
-    public function setExportQueryBuilder(\Doctrine\ORM\QueryBuilder $qb)
+    public function setExportQueryBuilder(QueryBuilder $qb)
     {
         $this->qb = $qb;
     }
@@ -175,24 +221,24 @@ class CsvExportService
      */
     public function initCsvType($CsvType)
     {
-        if ($CsvType instanceof \Eccube\Entity\Master\CsvType) {
+        if ($CsvType instanceof CsvType) {
             $this->CsvType = $CsvType;
         } else {
             $this->CsvType = $this->csvTypeRepository->find($CsvType);
         }
 
-        $criteria = array(
+        $criteria = [
             'CsvType' => $CsvType,
-            'enable_flg' => Constant::ENABLED
-        );
-        $orderBy = array(
-            'rank' => 'ASC'
-        );
+            'enabled' => true,
+        ];
+        $orderBy = [
+            'sort_no' => 'ASC',
+        ];
         $this->Csvs = $this->csvRepository->findBy($criteria, $orderBy);
     }
 
     /**
-     * @return \Eccube\Entity\Csv[]
+     * @return Csv[]
      */
     public function getCsvs()
     {
@@ -209,7 +255,7 @@ class CsvExportService
             throw new \LogicException('init csv type incomplete.');
         }
 
-        $row = array();
+        $row = [];
         foreach ($this->Csvs as $Csv) {
             $row[] = $Csv->getDispName();
         }
@@ -227,16 +273,16 @@ class CsvExportService
      */
     public function exportData(\Closure $closure)
     {
-        if (is_null($this->qb) || is_null($this->em)) {
+        if (is_null($this->qb) || is_null($this->entityManager)) {
             throw new \LogicException('query builder not set.');
         }
 
         $this->fopen();
 
         $query = $this->qb->getQuery();
-        foreach ($query->getResult() as $iteratableResult) {
-            $closure($iteratableResult, $this);
-            $this->em->detach($iteratableResult);
+        foreach ($query->getResult() as $iterableResult) {
+            $closure($iterableResult, $this);
+            $this->entityManager->detach($iterableResult);
             $query->free();
             flush();
         }
@@ -249,18 +295,16 @@ class CsvExportService
      *
      * @param \Eccube\Entity\Csv $Csv
      * @param $entity
-     * @return mixed|null|string|void
+     *
+     * @return string|null
      */
-    public function getData(\Eccube\Entity\Csv $Csv, $entity)
+    public function getData(Csv $Csv, $entity)
     {
         // エンティティ名が一致するかどうかチェック.
         $csvEntityName = str_replace('\\\\', '\\', $Csv->getEntityName());
-        $entityName = str_replace('\\\\', '\\', get_class($entity));
+        $entityName = ClassUtils::getClass($entity);
         if ($csvEntityName !== $entityName) {
-            $entityName = str_replace('DoctrineProxy\\__CG__\\', '', $entityName);
-            if ($csvEntityName !== $entityName) {
-                return null;
-            }
+            return null;
         }
 
         // カラム名がエンティティに存在するかどうかをチェック.
@@ -271,25 +315,24 @@ class CsvExportService
         // データを取得.
         $data = $entity->offsetGet($Csv->getFieldName());
 
-        // one to one の場合は, dtb_csv.referece_field_nameと比較し, 合致する結果を取得する.
+        // one to one の場合は, dtb_csv.reference_field_name, 合致する結果を取得する.
         if ($data instanceof \Eccube\Entity\AbstractEntity) {
             if (EntityUtil::isNotEmpty($data)) {
                 return $data->offsetGet($Csv->getReferenceFieldName());
             }
         } elseif ($data instanceof \Doctrine\Common\Collections\Collection) {
             // one to manyの場合は, カンマ区切りに変換する.
-            $array = array();
+            $array = [];
             foreach ($data as $elem) {
                 if (EntityUtil::isNotEmpty($elem)) {
                     $array[] = $elem->offsetGet($Csv->getReferenceFieldName());
                 }
             }
-            return implode($this->config['csv_export_multidata_separator'], $array);
 
+            return implode($this->eccubeConfig['eccube_csv_export_multidata_separator'], $array);
         } elseif ($data instanceof \DateTime) {
             // datetimeの場合は文字列に変換する.
-            return $data->format($this->config['csv_export_date_format']);
-
+            return $data->format($this->eccubeConfig['eccube_csv_export_date_format']);
         } else {
             // スカラ値の場合はそのまま.
             return $data;
@@ -303,20 +346,17 @@ class CsvExportService
      *
      * @return \Closure
      */
-    public function getConvertEncodhingCallback()
+    public function getConvertEncodingCallback()
     {
-        $config = $this->config;
+        $config = $this->eccubeConfig;
 
         return function ($value) use ($config) {
             return mb_convert_encoding(
-                (string) $value, $config['csv_export_encoding'], 'UTF-8'
+                (string) $value, $config['eccube_csv_export_encoding'], 'UTF-8'
             );
         };
     }
 
-    /**
-     *
-     */
     public function fopen()
     {
         if (is_null($this->fp) || $this->closed) {
@@ -326,20 +366,16 @@ class CsvExportService
 
     /**
      * @param $row
-     * @param null $callback
      */
     public function fputcsv($row)
     {
         if (is_null($this->convertEncodingCallBack)) {
-            $this->convertEncodingCallBack = $this->getConvertEncodhingCallback();
+            $this->convertEncodingCallBack = $this->getConvertEncodingCallback();
         }
 
-        fputcsv($this->fp, array_map($this->convertEncodingCallBack, $row), $this->config['csv_export_separator']);
+        fputcsv($this->fp, array_map($this->convertEncodingCallBack, $row), $this->eccubeConfig['eccube_csv_export_separator']);
     }
 
-    /**
-     *
-     */
     public function fclose()
     {
         if (!$this->closed) {
@@ -352,18 +388,18 @@ class CsvExportService
      * 受注検索用のクエリビルダを返す.
      *
      * @param Request $request
+     *
      * @return \Doctrine\ORM\QueryBuilder
      */
     public function getOrderQueryBuilder(Request $request)
     {
         $session = $request->getSession();
-        $viewData = $session->get('eccube.admin.order.search', array());
+        $builder = $this->formFactory
+            ->createBuilder(SearchOrderType::class);
+        $searchForm = $builder->getForm();
 
-        $app = \Eccube\Application::getInstance();
-        $searchForm = $app['form.factory']
-            ->create('admin_search_order', null, array('csrf_protection' => true));
-
-        $searchData = \Eccube\Util\FormUtil::submitAndGetData($searchForm, $viewData);
+        $viewData = $session->get('eccube.admin.order.search', []);
+        $searchData = FormUtil::submitAndGetData($searchForm, $viewData);
 
         // 受注データのクエリビルダを構築.
         $qb = $this->orderRepository
@@ -376,18 +412,18 @@ class CsvExportService
      * 会員検索用のクエリビルダを返す.
      *
      * @param Request $request
+     *
      * @return \Doctrine\ORM\QueryBuilder
      */
     public function getCustomerQueryBuilder(Request $request)
     {
         $session = $request->getSession();
-        $viewData = $session->get('eccube.admin.customer.search', array());
+        $builder = $this->formFactory
+            ->createBuilder(SearchCustomerType::class);
+        $searchForm = $builder->getForm();
 
-        $app = \Eccube\Application::getInstance();
-        $searchForm = $app['form.factory']
-            ->create('admin_search_customer', null, array('csrf_protection' => true));
-
-        $searchData = \Eccube\Util\FormUtil::submitAndGetData($searchForm, $viewData);
+        $viewData = $session->get('eccube.admin.customer.search', []);
+        $searchData = FormUtil::submitAndGetData($searchForm, $viewData);
 
         // 会員データのクエリビルダを構築.
         $qb = $this->customerRepository
@@ -400,53 +436,23 @@ class CsvExportService
      * 商品検索用のクエリビルダを返す.
      *
      * @param Request $request
+     *
      * @return \Doctrine\ORM\QueryBuilder
      */
     public function getProductQueryBuilder(Request $request)
     {
         $session = $request->getSession();
-                $viewData = $session->get('eccube.admin.product.search', array());
-        $app = \Eccube\Application::getInstance();
-        $searchForm = $app['form.factory']
-            ->create('admin_search_product', null, array('csrf_protection' => true));
-        $searchData = \Eccube\Util\FormUtil::submitAndGetData($searchForm, $viewData);
-        if(isset($viewData['link_status']) && strlen($viewData['link_status'])){
-            $searchData['link_status'] = $app['eccube.repository.master.disp']->find($viewData['link_status']);
-        }
-        if(isset($viewData['stock_status'])){
-            $searchData['stock_status'] = $viewData['stock_status'];
-        }
+        $builder = $this->formFactory
+            ->createBuilder(SearchProductType::class);
+        $searchForm = $builder->getForm();
+
+        $viewData = $session->get('eccube.admin.product.search', []);
+        $searchData = FormUtil::submitAndGetData($searchForm, $viewData);
 
         // 商品データのクエリビルダを構築.
         $qb = $this->productRepository
             ->getQueryBuilderBySearchDataForAdmin($searchData);
 
         return $qb;
-    }
-
-    /**
-     * セッションでシリアライズされた Doctrine のオブジェクトを取得し直す.
-     *
-     * XXX self::setExportQueryBuilder() をコールする前に EntityManager を取得したいので、引数で渡している
-     *
-     * @param array $searchData セッションから取得した検索条件の配列
-     * @param EntityManager $em
-     */
-    protected function findDeserializeObjects(array &$searchData)
-    {
-        $em = $this->getEntityManager();
-        foreach ($searchData as &$Conditions) {
-            if ($Conditions instanceof ArrayCollection) {
-                $Conditions = new ArrayCollection(
-                    array_map(
-                        function ($Entity) use ($em) {
-                            return $em->getRepository(get_class($Entity))->find($Entity->getId());
-                        }, $Conditions->toArray()
-                    )
-                );
-            } elseif ($Conditions instanceof \Eccube\Entity\AbstractEntity) {
-                $Conditions = $em->getRepository(get_class($Conditions))->find($Conditions->getId());
-            }
-        }
     }
 }

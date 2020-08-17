@@ -1,441 +1,479 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Entity;
 
-use Eccube\Util\EntityUtil;
+use Doctrine\ORM\Mapping as ORM;
 
-/**
- * Payment
- */
-class Payment extends \Eccube\Entity\AbstractEntity
-{
+if (!class_exists('\Eccube\Entity\Payment')) {
     /**
-     * @return string
-     */
-    public function __toString()
-    {
-        return $this->getMethod();
-    }
-
-    /**
-     * @var integer
-     */
-    private $id;
-
-    /**
-     * @var string
-     */
-    private $method;
-
-    /**
-     * @var string
-     */
-    private $charge;
-
-    /**
-     * @var string
-     */
-    private $rule_min;
-
-    /**
-     * @var string
-     */
-    private $rule_max;
-
-    /**
-     * @var integer
-     */
-    private $rank;
-
-    /**
-     * @var integer
-     */
-    private $fix_flg;
-
-    /**
-     * @var integer
-     */
-    private $del_flg;
-
-    /**
-     * @var \Eccube\Entity\Member
-     */
-    private $Creator;
-
-    /**
-     * @var \DateTime
-     */
-    private $create_date;
-
-    /**
-     * @var \DateTime
-     */
-    private $update_date;
-
-    /**
-     * @var string
-     */
-    private $payment_image;
-
-    /**
-     * @var integer
-     */
-    private $charge_flg;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $PaymentOptions;
-
-    /**
-     * Constructor
-     */
-    public function __construct()
-    {
-        $this->PaymentOptions = new \Doctrine\Common\Collections\ArrayCollection();
-    }
-
-    /**
-     * Get id
+     * Payment
      *
-     * @return integer
+     * @ORM\Table(name="dtb_payment")
+     * @ORM\InheritanceType("SINGLE_TABLE")
+     * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+     * @ORM\HasLifecycleCallbacks()
+     * @ORM\Entity(repositoryClass="Eccube\Repository\PaymentRepository")
      */
-    public function getId()
+    class Payment extends \Eccube\Entity\AbstractEntity
     {
-        return $this->id;
-    }
-
-    /**
-     * Set method
-     *
-     * @param  string  $method
-     * @return Payment
-     */
-    public function setMethod($method)
-    {
-        $this->method = $method;
-
-        return $this;
-    }
-
-    /**
-     * Get method
-     *
-     * @return string
-     */
-    public function getMethod()
-    {
-        return $this->method;
-    }
-
-    /**
-     * Set charge
-     *
-     * @param  string  $charge
-     * @return Payment
-     */
-    public function setCharge($charge)
-    {
-        $this->charge = $charge;
-
-        return $this;
-    }
-
-    /**
-     * Get charge
-     *
-     * @return string
-     */
-    public function getCharge()
-    {
-        return $this->charge;
-    }
-
-    /**
-     * Set rule_max
-     *
-     * @param  string  $ruleMax
-     * @return Payment
-     */
-    public function setRuleMax($ruleMax)
-    {
-        $this->rule_max = $ruleMax;
-
-        return $this;
-    }
-
-    /**
-     * Get rule_max
-     *
-     * @return string
-     */
-    public function getRuleMax()
-    {
-        return $this->rule_max;
-    }
-
-    /**
-     * Set rank
-     *
-     * @param  integer $rank
-     * @return Payment
-     */
-    public function setRank($rank)
-    {
-        $this->rank = $rank;
-
-        return $this;
-    }
-
-    /**
-     * Get rank
-     *
-     * @return integer
-     */
-    public function getRank()
-    {
-        return $this->rank;
-    }
-
-    /**
-     * Set fix_flg
-     *
-     * @param  integer $fixFlg
-     * @return Payment
-     */
-    public function setFixFlg($fixFlg)
-    {
-        $this->fix_flg = $fixFlg;
-
-        return $this;
-    }
-
-    /**
-     * Get fix_flg
-     *
-     * @return integer
-     */
-    public function getFixFlg()
-    {
-        return $this->fix_flg;
-    }
-
-    /**
-     * Set del_flg
-     *
-     * @param  integer $delFlg
-     * @return Payment
-     */
-    public function setDelFlg($delFlg)
-    {
-        $this->del_flg = $delFlg;
-
-        return $this;
-    }
-
-    /**
-     * Get del_flg
-     *
-     * @return integer
-     */
-    public function getDelFlg()
-    {
-        return $this->del_flg;
-    }
-
-    /**
-     * Set Creator
-     *
-     * @param  \Eccube\Entity\Member $Creator
-     * @return Delivery
-     */
-    public function setCreator(\Eccube\Entity\Member $Creator)
-    {
-        $this->Creator = $Creator;
-
-        return $this;
-    }
-
-    /**
-     * Get Creator
-     *
-     * @return \Eccube\Entity\Member
-     */
-    public function getCreator()
-    {
-        if (EntityUtil::isEmpty($this->Creator)) {
-            return null;
+        /**
+         * @return string
+         */
+        public function __toString()
+        {
+            return (string) $this->getMethod();
         }
-        return $this->Creator;
-    }
 
-    /**
-     * Set create_date
-     *
-     * @param  \DateTime $createDate
-     * @return Payment
-     */
-    public function setCreateDate($createDate)
-    {
-        $this->create_date = $createDate;
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="IDENTITY")
+         */
+        private $id;
 
-        return $this;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="payment_method", type="string", length=255, nullable=true)
+         */
+        private $method;
 
-    /**
-     * Get create_date
-     *
-     * @return \DateTime
-     */
-    public function getCreateDate()
-    {
-        return $this->create_date;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="charge", type="decimal", precision=12, scale=2, nullable=true, options={"unsigned":true,"default":0})
+         */
+        private $charge = 0;
 
-    /**
-     * Set update_date
-     *
-     * @param  \DateTime $updateDate
-     * @return Payment
-     */
-    public function setUpdateDate($updateDate)
-    {
-        $this->update_date = $updateDate;
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="rule_max", type="decimal", precision=12, scale=2, nullable=true, options={"unsigned":true})
+         */
+        private $rule_max;
 
-        return $this;
-    }
+        /**
+         * @var int|null
+         *
+         * @ORM\Column(name="sort_no", type="smallint", nullable=true, options={"unsigned":true})
+         */
+        private $sort_no;
 
-    /**
-     * Get update_date
-     *
-     * @return \DateTime
-     */
-    public function getUpdateDate()
-    {
-        return $this->update_date;
-    }
+        /**
+         * @var boolean
+         *
+         * @ORM\Column(name="fixed", type="boolean", options={"default":true})
+         */
+        private $fixed = true;
 
-    /**
-     * Set payment_image
-     *
-     * @param  string  $paymentImage
-     * @return Payment
-     */
-    public function setPaymentImage($paymentImage)
-    {
-        $this->payment_image = $paymentImage;
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="payment_image", type="string", length=255, nullable=true)
+         */
+        private $payment_image;
 
-        return $this;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="rule_min", type="decimal", precision=12, scale=2, nullable=true, options={"unsigned":true})
+         */
+        private $rule_min;
 
-    /**
-     * Get payment_image
-     *
-     * @return string
-     */
-    public function getPaymentImage()
-    {
-        return $this->payment_image;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="method_class", type="string", length=255, nullable=true)
+         */
+        private $method_class;
 
-    /**
-     * Set charge_flg
-     *
-     * @param  integer $chargeFlg
-     * @return Payment
-     */
-    public function setChargeFlg($chargeFlg)
-    {
-        $this->charge_flg = $chargeFlg;
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="visible", type="boolean", options={"default":true})
+         */
+        private $visible;
 
-        return $this;
-    }
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="create_date", type="datetimetz")
+         */
+        private $create_date;
 
-    /**
-     * Get charge_flg
-     *
-     * @return integer
-     */
-    public function getChargeFlg()
-    {
-        return $this->charge_flg;
-    }
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="update_date", type="datetimetz")
+         */
+        private $update_date;
 
-    /**
-     * Set rule_min
-     *
-     * @param  string  $ruleMin
-     * @return Payment
-     */
-    public function setRuleMin($ruleMin)
-    {
-        $this->rule_min = $ruleMin;
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\PaymentOption", mappedBy="Payment")
+         */
+        private $PaymentOptions;
 
-        return $this;
-    }
+        /**
+         * @var \Eccube\Entity\Member
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Member")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="creator_id", referencedColumnName="id")
+         * })
+         */
+        private $Creator;
 
-    /**
-     * Get rule_min
-     *
-     * @return string
-     */
-    public function getRuleMin()
-    {
-        return $this->rule_min;
-    }
+        /**
+         * Constructor
+         */
+        public function __construct()
+        {
+            $this->PaymentOptions = new \Doctrine\Common\Collections\ArrayCollection();
+        }
 
-    /**
-     * Add PaymentOptions
-     *
-     * @param  \Eccube\Entity\PaymentOption $paymentOptions
-     * @return Payment
-     */
-    public function addPaymentOption(\Eccube\Entity\PaymentOption $paymentOptions)
-    {
-        $this->PaymentOptions[] = $paymentOptions;
+        /**
+         * Get id.
+         *
+         * @return int
+         */
+        public function getId()
+        {
+            return $this->id;
+        }
 
-        return $this;
-    }
+        /**
+         * Set method.
+         *
+         * @param string|null $method
+         *
+         * @return Payment
+         */
+        public function setMethod($method = null)
+        {
+            $this->method = $method;
 
-    /**
-     * Remove PaymentOptions
-     *
-     * @param \Eccube\Entity\PaymentOption $paymentOptions
-     */
-    public function removePaymentOption(\Eccube\Entity\PaymentOption $paymentOptions)
-    {
-        $this->PaymentOptions->removeElement($paymentOptions);
-    }
+            return $this;
+        }
 
-    /**
-     * Get PaymentOptions
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getPaymentOptions()
-    {
-        return $this->PaymentOptions;
+        /**
+         * Get method.
+         *
+         * @return string|null
+         */
+        public function getMethod()
+        {
+            return $this->method;
+        }
+
+        /**
+         * Set charge.
+         *
+         * @param string|null $charge
+         *
+         * @return Payment
+         */
+        public function setCharge($charge = null)
+        {
+            $this->charge = $charge;
+
+            return $this;
+        }
+
+        /**
+         * Get charge.
+         *
+         * @return string|null
+         */
+        public function getCharge()
+        {
+            return $this->charge;
+        }
+
+        /**
+         * Set ruleMax.
+         *
+         * @param string|null $ruleMax
+         *
+         * @return Payment
+         */
+        public function setRuleMax($ruleMax = null)
+        {
+            $this->rule_max = $ruleMax;
+
+            return $this;
+        }
+
+        /**
+         * Get ruleMax.
+         *
+         * @return string|null
+         */
+        public function getRuleMax()
+        {
+            return $this->rule_max;
+        }
+
+        /**
+         * Set sortNo.
+         *
+         * @param int|null $sortNo
+         *
+         * @return Payment
+         */
+        public function setSortNo($sortNo = null)
+        {
+            $this->sort_no = $sortNo;
+
+            return $this;
+        }
+
+        /**
+         * Get sortNo.
+         *
+         * @return int|null
+         */
+        public function getSortNo()
+        {
+            return $this->sort_no;
+        }
+
+        /**
+         * Set fixed.
+         *
+         * @param boolean $fixed
+         *
+         * @return Payment
+         */
+        public function setFixed($fixed)
+        {
+            $this->fixed = $fixed;
+
+            return $this;
+        }
+
+        /**
+         * Get fixed.
+         *
+         * @return boolean
+         */
+        public function isFixed()
+        {
+            return $this->fixed;
+        }
+
+        /**
+         * Set paymentImage.
+         *
+         * @param string|null $paymentImage
+         *
+         * @return Payment
+         */
+        public function setPaymentImage($paymentImage = null)
+        {
+            $this->payment_image = $paymentImage;
+
+            return $this;
+        }
+
+        /**
+         * Get paymentImage.
+         *
+         * @return string|null
+         */
+        public function getPaymentImage()
+        {
+            return $this->payment_image;
+        }
+
+        /**
+         * Set ruleMin.
+         *
+         * @param string|null $ruleMin
+         *
+         * @return Payment
+         */
+        public function setRuleMin($ruleMin = null)
+        {
+            $this->rule_min = $ruleMin;
+
+            return $this;
+        }
+
+        /**
+         * Get ruleMin.
+         *
+         * @return string|null
+         */
+        public function getRuleMin()
+        {
+            return $this->rule_min;
+        }
+
+        /**
+         * Set methodClass.
+         *
+         * @param string|null $methodClass
+         *
+         * @return Payment
+         */
+        public function setMethodClass($methodClass = null)
+        {
+            $this->method_class = $methodClass;
+
+            return $this;
+        }
+
+        /**
+         * Get methodClass.
+         *
+         * @return string|null
+         */
+        public function getMethodClass()
+        {
+            return $this->method_class;
+        }
+
+        /**
+         * @return integer
+         */
+        public function isVisible()
+        {
+            return $this->visible;
+        }
+
+        /**
+         * @param boolean $visible
+         *
+         * @return Payment
+         */
+        public function setVisible($visible)
+        {
+            $this->visible = $visible;
+
+            return $this;
+        }
+
+        /**
+         * Set createDate.
+         *
+         * @param \DateTime $createDate
+         *
+         * @return Payment
+         */
+        public function setCreateDate($createDate)
+        {
+            $this->create_date = $createDate;
+
+            return $this;
+        }
+
+        /**
+         * Get createDate.
+         *
+         * @return \DateTime
+         */
+        public function getCreateDate()
+        {
+            return $this->create_date;
+        }
+
+        /**
+         * Set updateDate.
+         *
+         * @param \DateTime $updateDate
+         *
+         * @return Payment
+         */
+        public function setUpdateDate($updateDate)
+        {
+            $this->update_date = $updateDate;
+
+            return $this;
+        }
+
+        /**
+         * Get updateDate.
+         *
+         * @return \DateTime
+         */
+        public function getUpdateDate()
+        {
+            return $this->update_date;
+        }
+
+        /**
+         * Add paymentOption.
+         *
+         * @param \Eccube\Entity\PaymentOption $paymentOption
+         *
+         * @return Payment
+         */
+        public function addPaymentOption(\Eccube\Entity\PaymentOption $paymentOption)
+        {
+            $this->PaymentOptions[] = $paymentOption;
+
+            return $this;
+        }
+
+        /**
+         * Remove paymentOption.
+         *
+         * @param \Eccube\Entity\PaymentOption $paymentOption
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removePaymentOption(\Eccube\Entity\PaymentOption $paymentOption)
+        {
+            return $this->PaymentOptions->removeElement($paymentOption);
+        }
+
+        /**
+         * Get paymentOptions.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getPaymentOptions()
+        {
+            return $this->PaymentOptions;
+        }
+
+        /**
+         * Set creator.
+         *
+         * @param \Eccube\Entity\Member|null $creator
+         *
+         * @return Payment
+         */
+        public function setCreator(\Eccube\Entity\Member $creator = null)
+        {
+            $this->Creator = $creator;
+
+            return $this;
+        }
+
+        /**
+         * Get creator.
+         *
+         * @return \Eccube\Entity\Member|null
+         */
+        public function getCreator()
+        {
+            return $this->Creator;
+        }
     }
 }

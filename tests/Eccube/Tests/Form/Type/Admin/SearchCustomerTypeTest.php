@@ -1,74 +1,127 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Form\Type\Admin;
 
+use Eccube\Form\Type\Admin\SearchCustomerType;
+use Symfony\Component\Form\FormInterface;
+
 class SearchCustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
-    /** @var \symfony\component\form\forminterface */
+    /**
+     * @var FormInterface
+     */
     protected $form;
 
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
         parent::setUp();
 
         // CSRF tokenを無効にしてFormを作成
-        $this->form = $this->app['form.factory']
-            ->createBuilder('admin_search_customer', null, array(
-                'csrf_protection' => false,
-            ))
+        $this->form = $this->formFactory
+            ->createBuilder(SearchCustomerType::class, null, ['csrf_protection' => false])
             ->getForm();
     }
 
-    public function testTel_NotValidData()
+    public function testPhoneNumber_NotValidData()
     {
-        $formData = array(
-            'tel' => str_repeat('A' , 55)
-        );
+        $formData = [
+            'phone_number' => str_repeat('A', 55),
+        ];
 
         $this->form->submit($formData);
         $this->assertFalse($this->form->isValid());
     }
 
-    public function testBuyProductName_NotValiedData(){
-        $formData = array(
-            'buy_product_name' => str_repeat('A' , 55)
-        );
+    public function testBuyProductName_NotValiedData()
+    {
+        $formData = [
+            'buy_product_name' => str_repeat('A', $this->eccubeConfig['eccube_stext_len'] + 1),
+        ];
 
         $this->form->submit($formData);
         $this->assertFalse($this->form->isValid());
     }
 
-    public function testBuyProductCode_NotValiedData(){
-        $formData = array(
-            'buy_product_code' => str_repeat('A' , 55)
-        );
+    /**
+     * EC-CUBE 4.0.4 以前のバージョンで互換性を保つため yyyy-MM-dd のフォーマットもチェック
+     *
+     * @dataProvider dataFormDateProvider
+     *
+     * @param string $formName
+     */
+    public function testDateSearch(string $formName)
+    {
+        $formData = [
+            $formName => '2020-07-09',
+        ];
 
         $this->form->submit($formData);
-        $this->assertFalse($this->form->isValid());
+        $this->assertTrue($this->form->isValid());
+    }
+
+    /**
+     * Data provider date form test.
+     *
+     * @return array
+     */
+    public function dataFormDateProvider()
+    {
+        return [
+            ['create_date_start'],
+            ['update_date_start'],
+            ['last_buy_start'],
+            ['create_date_end'],
+            ['update_date_end'],
+            ['last_buy_end'],
+            ['birth_start'],
+        ];
+    }
+
+    /**
+     * EC-CUBE 4.0.5 以降で yyyy-MM-dd HH:mm:ss のフォーマットでの検索機能を追加
+     *
+     * @dataProvider dataFormDateTimeProvider
+     *
+     * @param string $formName
+     */
+    public function testDateTimeSearch(string $formName)
+    {
+        $formData = [
+            $formName => '2020-07-09 09:00:00',
+        ];
+
+        $this->form->submit($formData);
+        $this->assertTrue($this->form->isValid());
+    }
+
+    /**
+     * Data provider datetime form test.
+     *
+     * @return array
+     */
+    public function dataFormDateTimeProvider()
+    {
+        return [
+            ['create_datetime_start'],
+            ['update_datetime_start'],
+            ['last_buy_datetime_start'],
+            ['create_datetime_end'],
+            ['update_datetime_end'],
+            ['last_buy_datetime_end'],
+        ];
     }
 }

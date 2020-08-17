@@ -1,82 +1,54 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Form\Type\Admin;
 
+use Eccube\Form\Type\Admin\CustomerType;
+
 class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
     /** @var \Symfony\Component\Form\FormInterface */
     protected $form;
 
     /** @var array デフォルト値（正常系）を設定 */
-    protected $formData = array(
-        'name' => array(
+    protected $formData = [
+        'name' => [
             'name01' => 'たかはし',
             'name02' => 'しんいち',
-        ),
-        'kana'=> array(
+        ],
+        'kana' => [
             'kana01' => 'タカハシ',
             'kana02' => 'シンイチ',
-        ),
+        ],
         'company_name' => '株式会社テストショップ',
-        'zip' => array(
-            'zip01' => '530',
-            'zip02' => '0001',
-        ),
-        'address' => array(
+        'postal_code' => '530-0001',
+        'address' => [
             'pref' => '5',
             'addr01' => '北区',
             'addr02' => '梅田',
-        ),
-        'tel' => array(
-            'tel01' => '012',
-            'tel02' => '345',
-            'tel03' => '6789',
-        ),
-        'fax' => array(
-            'fax01' => '112',
-            'fax02' => '345',
-            'fax03' => '6789',
-        ),
+        ],
+        'phone_number' => '012-345-6789',
         'email' => 'default@example.com',
         'sex' => 1,
         'job' => 1,
-        'birth' => array(
-            'year' => '1983',
-            'month' => '2',
-            'day' => '14',
-        ),
-        'password' => array(
+        'birth' => '1983-2-14',
+        'password' => [
             'first' => 'password',
             'second' => 'password',
-        ),
+        ],
         'status' => 1,
         'note' => 'note',
-    );
+    ];
 
     public function setUp()
     {
@@ -84,10 +56,10 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
         // CSRF tokenを無効にしてFormを作成
         // 会員管理会員登録・編集
-        $this->form = $this->app['form.factory']
-            ->createBuilder('admin_customer', null, array(
+        $this->form = $this->formFactory
+            ->createBuilder(CustomerType::class, null, [
                 'csrf_protection' => false,
-            ))
+            ])
             ->getForm();
     }
 
@@ -97,24 +69,12 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
         $this->assertTrue($this->form->isValid());
     }
 
-    public function testInvalidTel_Blank()
+    public function testInvalidPhoneNumber_Blank()
     {
-        $this->formData['tel']['tel01'] = '';
-        $this->formData['tel']['tel02'] = '';
-        $this->formData['tel']['tel03'] = '';
+        $this->formData['phone_number'] = '';
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
-    }
-
-    public function testValidFax_Blank()
-    {
-        $this->formData['fax']['fax01'] = '';
-        $this->formData['fax']['fax02'] = '';
-        $this->formData['fax']['fax03'] = '';
-
-        $this->form->submit($this->formData);
-        $this->assertTrue($this->form->isValid());
     }
 
     public function testInvalidName01_Blank()
@@ -157,17 +117,9 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
         $this->assertTrue($this->form->isValid());
     }
 
-    public function testInvalidZip01_Blank()
+    public function testInvalidPostalCode_Blank()
     {
-        $this->formData['zip']['zip01'] = '';
-
-        $this->form->submit($this->formData);
-        $this->assertFalse($this->form->isValid());
-    }
-
-    public function testInvalidZip02_Blank()
-    {
-        $this->formData['zip']['zip02'] = '';
+        $this->formData['postal_code'] = '';
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -218,7 +170,7 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
         $this->formData['email'] = 'abc..@example.com';
 
         $this->form->submit($this->formData);
-        $this->assertFalse($this->form->isValid());
+        $this->assertTrue($this->form->isValid());
     }
 
     public function testValidJob_Blank()
@@ -248,8 +200,8 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testValidPassword_MinLength()
     {
-        $this->formData['password']['first'] = str_repeat('a', $this->app['config']['password_min_len']);
-        $this->formData['password']['second'] = str_repeat('a', $this->app['config']['password_min_len']);
+        $this->formData['password']['first'] = str_repeat('a', $this->eccubeConfig['eccube_password_min_len']);
+        $this->formData['password']['second'] = str_repeat('a', $this->eccubeConfig['eccube_password_min_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -257,7 +209,10 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInvalidPassword_MinLength()
     {
-        $this->formData['password']['first'] = str_repeat('a', $this->app['config']['password_min_len']-1);
+        $password = str_repeat('a', $this->eccubeConfig['eccube_password_min_len'] - 1);
+
+        $this->formData['password']['first'] = $password;
+        $this->formData['password']['second'] = $password;
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -265,8 +220,8 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testValidPassword_MaxLength()
     {
-        $this->formData['password']['first'] = str_repeat('a', $this->app['config']['password_max_len']);
-        $this->formData['password']['second'] = str_repeat('a', $this->app['config']['password_max_len']);
+        $this->formData['password']['first'] = str_repeat('a', $this->eccubeConfig['eccube_password_max_len']);
+        $this->formData['password']['second'] = str_repeat('a', $this->eccubeConfig['eccube_password_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -274,10 +229,22 @@ class CustomerTypeTest extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInvalidPassword_MaxLength()
     {
-        $this->formData['password']['first'] = str_repeat('a', $this->app['config']['password_max_len']+1);
+        $password = str_repeat('a', $this->eccubeConfig['eccube_password_max_len'] + 1);
+
+        $this->formData['password']['first'] = $password;
+        $this->formData['password']['second'] = $password;
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
+    }
+
+    public function testInvalidPassword_EqualEmail()
+    {
+        $this->formData['password']['first'] = $this->formData['email'];
+        $this->formData['password']['second'] = $this->formData['email'];
+
+        $this->form->submit($this->formData);
+        $this->assertEquals(trans('common.password_eq_email'), $this->form->getErrors(true)[0]->getMessage());
     }
 
     public function testInvalidStatus_Blank()

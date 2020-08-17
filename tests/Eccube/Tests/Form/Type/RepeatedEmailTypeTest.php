@@ -1,57 +1,53 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Tests\Form\Type;
 
-class RepeatedEmailTypeTest extends \PHPUnit_Framework_TestCase
-{
-    /** @var \Eccube\Application */
-    protected $app;
+use Eccube\Form\Type\RepeatedEmailType;
+use Symfony\Component\Form\Extension\Core\Type\FormType;
 
-    /** @var \Symfony\Component\Form\FormInterface */
+class RepeatedEmailTypeTest extends AbstractTypeTestCase
+{
+    /**
+     * @var \Symfony\Component\Form\FormInterface
+     */
     protected $form;
 
-    /** @var array デフォルト値（正常系）を設定 */
-    protected $formData = array(
-        'email' => array(
-            'first' =>'eccube@example.com',
-            'second' =>'eccube@example.com',
-        ),
-    );
+    /**
+     * @var array デフォルト値（正常系）を設定
+     */
+    protected $formData = [
+        'email' => [
+            'first' => 'eccube@example.com',
+            'second' => 'eccube@example.com',
+        ],
+    ];
 
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
         parent::setUp();
 
-        $app = $this->createApplication();
-        // CSRF tokenを無効にしてFormを作成
-        $this->form = $app['form.factory']->createBuilder('form', null, array('csrf_protection' => false))
-            ->add('email', 'repeated_email', array(
-            ))
+        $this->form = $this->formFactory
+            ->createBuilder(FormType::class, null, ['csrf_protection' => false])
+            ->add('email', RepeatedEmailType::class, [
+            ])
             ->getForm();
     }
 
-    protected function tearDown()
+    public function tearDown()
     {
         parent::tearDown();
         $this->form = null;
@@ -89,32 +85,22 @@ class RepeatedEmailTypeTest extends \PHPUnit_Framework_TestCase
         $this->assertFalse($this->form->isValid());
     }
 
-    public function testInvalidEmail_RFC2822()
+    public function testMailNoRFC()
     {
         $this->formData['email']['first'] = 'abc..@example.com';
         $this->formData['email']['second'] = 'abc..@example.com';
         $this->form->submit($this->formData);
 
-        $this->assertFalse($this->form->isValid());
+        $this->assertTrue($this->form->isValid());
     }
 
-    public function createApplication()
+    public function testInvalidEmail_MaxLength()
     {
-        $app = new \Silex\Application();
-        $app->register(new \Silex\Provider\FormServiceProvider());
-        $app->register(new \Eccube\ServiceProvider\ValidatorServiceProvider());
-        $app['eccube.service.plugin'] = $app->share(function () use ($app) {
-            return new \Eccube\Service\PluginService($app);
-        });
+        $mail = str_repeat("a", $this->eccubeConfig['eccube_stext_len'] - strlen('@example.com') + 1) . '@example.com';
+        $this->formData['email']['first'] = $mail;
+        $this->formData['email']['second'] = $mail;
+        $this->form->submit($this->formData);
 
-        // fix php5.3
-        $self = $this;
-        $app['form.types'] = $app->share($app->extend('form.types', function ($types) use ($app, $self) {
-            $types[] = new \Eccube\Form\Type\RepeatedEmailType();
-
-            return $types;
-        }));
-
-        return $app;
+        $this->assertFalse($this->form->isValid());
     }
 }

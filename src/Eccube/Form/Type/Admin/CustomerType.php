@@ -1,41 +1,58 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\Customer;
+use Eccube\Form\Type\AddressType;
+use Eccube\Form\Type\KanaType;
+use Eccube\Form\Type\Master\CustomerStatusType;
+use Eccube\Form\Type\Master\JobType;
+use Eccube\Form\Type\Master\SexType;
+use Eccube\Form\Type\NameType;
+use Eccube\Form\Type\RepeatedPasswordType;
+use Eccube\Form\Type\PhoneNumberType;
+use Eccube\Form\Type\PostalType;
+use Eccube\Form\Validator\Email;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type;
+use Symfony\Component\Form\Extension\Core\Type\BirthdayType;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class CustomerType extends AbstractType
 {
-    protected $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($config)
+    /**
+     * CustomerType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -43,107 +60,130 @@ class CustomerType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $config = $this->config;
-
         $builder
-            ->add('name', 'name', array(
+            ->add('name', NameType::class, [
                 'required' => true,
-            ))
-            ->add('kana', 'kana', array(
+            ])
+            ->add('kana', KanaType::class, [
                 'required' => true,
-            ))
-            ->add('company_name', 'text', array(
+            ])
+            ->add('company_name', TextType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    ))
-                ),
-            ))
-            ->add('zip', 'zip', array(
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('postal_code', PostalType::class, [
                 'required' => true,
-            ))
-            ->add('address', 'address', array(
+            ])
+            ->add('address', AddressType::class, [
                 'required' => true,
-            ))
-            ->add('tel', 'tel', array(
+            ])
+            ->add('phone_number', PhoneNumberType::class, [
                 'required' => true,
-            ))
-            ->add('fax', 'tel', array(
-                'required' => false,
-            ))
-            ->add('email', 'email', array(
+            ])
+            ->add('email', EmailType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    // configでこの辺りは変えられる方が良さそう
-                    new Assert\Email(array('strict' => true)),
-                    new Assert\Regex(array(
-                        'pattern' => '/^[[:graph:][:space:]]+$/i',
-                        'message' => 'form.type.graph.invalid',
-                    )),
-                ),
-            ))
-            ->add('sex', 'sex', array(
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+                'attr' => [
+                    'placeholder' => 'common.mail_address_sample',
+                ],
+            ])
+            ->add('sex', SexType::class, [
                 'required' => false,
-            ))
-            ->add('job', 'job', array(
+            ])
+            ->add('job', JobType::class, [
                 'required' => false,
-            ))
-            ->add('birth', 'birthday', array(
+            ])
+            ->add('birth', BirthdayType::class, [
                 'required' => false,
                 'input' => 'datetime',
-                'years' => range(date('Y'), date('Y') - $this->config['birth_max']),
-                'widget' => 'choice',
+                'years' => range(date('Y'), date('Y') - $this->eccubeConfig['eccube_birth_max']),
+                'widget' => 'single_text',
                 'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-                'constraints' => array(
-                    new Assert\LessThanOrEqual(array(
-                        'value' => date('Y-m-d'),
-                        'message' => 'form.type.select.selectisfuturedate',
-                    )),
-                ),
-            ))
-            ->add('password', 'repeated_password', array(
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+                'constraints' => [
+                    new Assert\LessThanOrEqual([
+                        'value' => date('Y-m-d', strtotime('-1 day')),
+                        'message' => 'form_error.select_is_future_or_now_date',
+                    ]),
+                ],
+            ])
+            ->add('password', RepeatedPasswordType::class, [
                 // 'type' => 'password',
-                'first_options'  => array(
-                    'label' => 'パスワード',
-                ),
-                'second_options' => array(
-                    'label' => 'パスワード(確認)',
-                ),
-            ))
-            ->add('status', 'customer_status', array(
+                'first_options' => [
+                    'label' => 'member.label.pass',
+                ],
+                'second_options' => [
+                    'label' => 'member.label.verify_pass',
+                ],
+            ])
+            ->add('status', CustomerStatusType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ))
-            ->add('note', 'textarea', array(
-                'label' => 'SHOP用メモ',
+                ],
+            ])
+            ->add(
+                'point',
+                NumberType::class,
+                [
+                    'required' => false,
+                    'constraints' => [
+                        new Assert\Regex([
+                            'pattern' => "/^\d+$/u",
+                            'message' => 'form_error.numeric_only',
+                        ]),
+                    ],
+                ]
+            )
+            ->add('note', TextareaType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['ltext_len'],
-                    )),
-                ),
-            ));
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_ltext_len'],
+                    ]),
+                ],
+            ]);
+
+        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+            $form = $event->getForm();
+            /** @var Customer $Customer */
+            $Customer = $event->getData();
+            if ($Customer->getPassword() != '' && $Customer->getPassword() == $Customer->getEmail()) {
+                $form['password']['first']->addError(new FormError(trans('common.password_eq_email')));
+            }
+        });
+
+        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+            $Customer = $event->getData();
+
+            // ポイント数が入力されていない場合0を登録
+            if (is_null($Customer->getPoint())) {
+                $Customer->setPoint(0);
+            }
+        });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
+        $resolver->setDefaults([
             'data_class' => 'Eccube\Entity\Customer',
-        ));
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_customer';
     }

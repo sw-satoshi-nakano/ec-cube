@@ -1,1024 +1,1055 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Entity;
 
 use Doctrine\Common\Collections\ArrayCollection;
-use Eccube\Common\Constant;
-use Eccube\Util\EntityUtil;
+use Doctrine\ORM\Mapping as ORM;
 
-/**
- * Product
- */
-class Product extends \Eccube\Entity\AbstractEntity
-{
-    private $_calc = false;
-    private $stockFinds = array();
-    private $stocks = array();
-    private $stockUnlimiteds = array();
-    private $price01 = array();
-    private $price02 = array();
-    private $price01IncTaxs = array();
-    private $price02IncTaxs = array();
-    private $codes = array();
-    private $classCategories1 = array();
-    private $classCategories2 = array();
-    private $className1;
-    private $className2;
-
+if (!class_exists('\Eccube\Entity\Product')) {
     /**
-     * @return string
+     * Product
+     *
+     * @ORM\Table(name="dtb_product")
+     * @ORM\InheritanceType("SINGLE_TABLE")
+     * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+     * @ORM\HasLifecycleCallbacks()
+     * @ORM\Entity(repositoryClass="Eccube\Repository\ProductRepository")
      */
-    public function __toString()
+    class Product extends \Eccube\Entity\AbstractEntity
     {
-        return $this->getName();
-    }
+        private $_calc = false;
+        private $stockFinds = [];
+        private $stocks = [];
+        private $stockUnlimiteds = [];
+        private $price01 = [];
+        private $price02 = [];
+        private $price01IncTaxs = [];
+        private $price02IncTaxs = [];
+        private $codes = [];
+        private $classCategories1 = [];
+        private $classCategories2 = [];
+        private $className1;
+        private $className2;
 
-    public function _calc()
-    {
-        if (!$this->_calc) {
-            $i = 0;
-            foreach ($this->getProductClasses() as $ProductClass) {
-                /* @var $ProductClass \Eccube\Entity\ProductClass */
-                // del_flg
-                if ($ProductClass->getDelFlg() === 1) {
-                    continue;
-                }
+        /**
+         * @return string
+         */
+        public function __toString()
+        {
+            return (string) $this->getName();
+        }
 
-                // stock_find
-                $this->stockFinds[] = $ProductClass->getStockFind();
-
-                // stock
-                $this->stocks[] = $ProductClass->getStock();
-
-                // stock_unlimited
-                $this->stockUnlimiteds[] = $ProductClass->getStockUnlimited();
-
-                // price01
-                if (!is_null($ProductClass->getPrice01())) {
-                    $this->price01[] = $ProductClass->getPrice01();
-                    // price01IncTax
-                    $this->price01IncTaxs[] = $ProductClass->getPrice01IncTax();
-                }
-
-                // price02
-                $this->price02[] = $ProductClass->getPrice02();
-
-                // price02IncTax
-                $this->price02IncTaxs[] = $ProductClass->getPrice02IncTax();
-
-                // product_code
-                $this->codes[] = $ProductClass->getCode();
-
-                if ($i === 0) {
-                    if ($ProductClass->getClassCategory1() && $ProductClass->getClassCategory1()->getId()) {
-                        $this->className1 = $ProductClass->getClassCategory1()->getClassName()->getName();
+        public function _calc()
+        {
+            if (!$this->_calc) {
+                $i = 0;
+                foreach ($this->getProductClasses() as $ProductClass) {
+                    /* @var $ProductClass \Eccube\Entity\ProductClass */
+                    // stock_find
+                    if ($ProductClass->isVisible() == false) {
+                        continue;
                     }
-                    if ($ProductClass->getClassCategory2() && $ProductClass->getClassCategory2()->getId()) {
-                        $this->className2 = $ProductClass->getClassCategory2()->getClassName()->getName();
+                    $ClassCategory1 = $ProductClass->getClassCategory1();
+                    $ClassCategory2 = $ProductClass->getClassCategory2();
+                    if ($ClassCategory1 && !$ClassCategory1->isVisible()) {
+                        continue;
                     }
-                }
-                if ($ProductClass->getClassCategory1()) {
-                    $classCategoryId1 = $ProductClass->getClassCategory1()->getId();
-                    if (!empty($classCategoryId1)) {
-                        $this->classCategories1[$ProductClass->getClassCategory1()->getId()] = $ProductClass->getClassCategory1()->getName();
-                        if ($ProductClass->getClassCategory2()) {
-                            $this->classCategories2[$ProductClass->getClassCategory1()->getId()][$ProductClass->getClassCategory2()->getId()] = $ProductClass->getClassCategory2()->getName();
+                    if ($ClassCategory2 && !$ClassCategory2->isVisible()) {
+                        continue;
+                    }
+
+                    // stock_find
+                    $this->stockFinds[] = $ProductClass->getStockFind();
+
+                    // stock
+                    $this->stocks[] = $ProductClass->getStock();
+
+                    // stock_unlimited
+                    $this->stockUnlimiteds[] = $ProductClass->isStockUnlimited();
+
+                    // price01
+                    if (!is_null($ProductClass->getPrice01())) {
+                        $this->price01[] = $ProductClass->getPrice01();
+                        // price01IncTax
+                        $this->price01IncTaxs[] = $ProductClass->getPrice01IncTax();
+                    }
+
+                    // price02
+                    $this->price02[] = $ProductClass->getPrice02();
+
+                    // price02IncTax
+                    $this->price02IncTaxs[] = $ProductClass->getPrice02IncTax();
+
+                    // product_code
+                    $this->codes[] = $ProductClass->getCode();
+
+                    if ($i === 0) {
+                        if ($ProductClass->getClassCategory1() && $ProductClass->getClassCategory1()->getId()) {
+                            $this->className1 = $ProductClass->getClassCategory1()->getClassName()->getName();
+                        }
+                        if ($ProductClass->getClassCategory2() && $ProductClass->getClassCategory2()->getId()) {
+                            $this->className2 = $ProductClass->getClassCategory2()->getClassName()->getName();
                         }
                     }
+                    if ($ProductClass->getClassCategory1()) {
+                        $classCategoryId1 = $ProductClass->getClassCategory1()->getId();
+                        if (!empty($classCategoryId1)) {
+                            if ($ProductClass->getClassCategory2()) {
+                                $this->classCategories1[$ProductClass->getClassCategory1()->getId()] = $ProductClass->getClassCategory1()->getName();
+                                $this->classCategories2[$ProductClass->getClassCategory1()->getId()][$ProductClass->getClassCategory2()->getId()] = $ProductClass->getClassCategory2()->getName();
+                            } else {
+                                $this->classCategories1[$ProductClass->getClassCategory1()->getId()] = $ProductClass->getClassCategory1()->getName().($ProductClass->getStockFind() ? '' : trans('front.product.out_of_stock_label'));
+                            }
+                        }
+                    }
+                    $i++;
                 }
-                $i++;
-            }
-            $this->_calc = true;
-        }
-    }
-
-    /**
-     * Is Enable
-     *
-     * @return bool
-     */
-    public function isEnable()
-    {
-        return $this->getStatus()->getId() === \Eccube\Entity\Master\Disp::DISPLAY_SHOW ? true : false;
-    }
-
-    /**
-     * Get ClassName1
-     *
-     * @return string
-     */
-    public function getClassName1()
-    {
-        $this->_calc();
-
-        return $this->className1;
-    }
-
-    /**
-     * Get ClassName2
-     *
-     * @return string
-     */
-    public function getClassName2()
-    {
-        $this->_calc();
-
-        return $this->className2;
-    }
-
-    /**
-     * Get getClassCategories1
-     *
-     * @return array
-     */
-    public function getClassCategories1()
-    {
-        $this->_calc();
-
-        return $this->classCategories1;
-    }
-
-    /**
-     * Get getClassCategories2
-     *
-     * @return array
-     */
-    public function getClassCategories2($class_category1)
-    {
-        $this->_calc();
-
-        return isset($this->classCategories2[$class_category1]) ? $this->classCategories2[$class_category1] : array();
-    }
-
-    /**
-     * Get StockFind
-     *
-     * @return bool
-     */
-    public function getStockFind()
-    {
-        $this->_calc();
-
-        return max($this->stockFinds);
-    }
-
-    /**
-     * Get Stock min
-     *
-     * @return integer
-     */
-    public function getStockMin()
-    {
-        $this->_calc();
-
-        return min($this->stocks);
-    }
-
-    /**
-     * Get Stock max
-     *
-     * @return integer
-     */
-    public function getStockMax()
-    {
-        $this->_calc();
-
-        return max($this->stocks);
-    }
-
-    /**
-     * Get StockUnlimited min
-     *
-     * @return integer
-     */
-    public function getStockUnlimitedMin()
-    {
-        $this->_calc();
-
-        return min($this->stockUnlimiteds);
-    }
-
-    /**
-     * Get StockUnlimited max
-     *
-     * @return integer
-     */
-    public function getStockUnlimitedMax()
-    {
-        $this->_calc();
-
-        return max($this->stockUnlimiteds);
-    }
-
-    /**
-     * Get Price01 min
-     *
-     * @return integer
-     */
-    public function getPrice01Min()
-    {
-        $this->_calc();
-
-        if (count($this->price01) == 0) {
-            return null;
-        }
-
-        return min($this->price01);
-    }
-
-    /**
-     * Get Price01 max
-     *
-     * @return integer
-     */
-    public function getPrice01Max()
-    {
-        $this->_calc();
-
-        if (count($this->price01) == 0) {
-            return null;
-        }
-
-        return max($this->price01);
-    }
-
-    /**
-     * Get Price02 min
-     *
-     * @return integer
-     */
-    public function getPrice02Min()
-    {
-        $this->_calc();
-
-        return min($this->price02);
-    }
-
-    /**
-     * Get Price02 max
-     *
-     * @return integer
-     */
-    public function getPrice02Max()
-    {
-        $this->_calc();
-
-        return max($this->price02);
-    }
-
-    /**
-     * Get Price01IncTax min
-     *
-     * @return integer
-     */
-    public function getPrice01IncTaxMin()
-    {
-        $this->_calc();
-
-        return min($this->price01IncTaxs);
-    }
-
-    /**
-     * Get Price01IncTax max
-     *
-     * @return integer
-     */
-    public function getPrice01IncTaxMax()
-    {
-        $this->_calc();
-
-        return max($this->price01IncTaxs);
-    }
-
-    /**
-     * Get Price02IncTax min
-     *
-     * @return integer
-     */
-    public function getPrice02IncTaxMin()
-    {
-        $this->_calc();
-
-        return min($this->price02IncTaxs);
-    }
-
-    /**
-     * Get Price02IncTax max
-     *
-     * @return integer
-     */
-    public function getPrice02IncTaxMax()
-    {
-        $this->_calc();
-
-        return max($this->price02IncTaxs);
-    }
-
-    /**
-     * Get Product_code min
-     *
-     * @return integer
-     */
-    public function getCodeMin()
-    {
-        $this->_calc();
-
-        $codes = array();
-        foreach ($this->codes as $code) {
-            if (!is_null($code)) {
-                $codes[] = $code;
+                $this->_calc = true;
             }
         }
-        return count($codes) ? min($codes) : null;
-    }
 
-    /**
-     * Get Product_code max
-     *
-     * @return integer
-     */
-    public function getCodeMax()
-    {
-        $this->_calc();
+        /**
+         * Is Enable
+         *
+         * @return bool
+         *
+         * @deprecated
+         */
+        public function isEnable()
+        {
+            return $this->getStatus()->getId() === \Eccube\Entity\Master\ProductStatus::DISPLAY_SHOW ? true : false;
+        }
 
-        $codes = array();
-        foreach ($this->codes as $code) {
-            if (!is_null($code)) {
-                $codes[] = $code;
+        /**
+         * Get ClassName1
+         *
+         * @return string
+         */
+        public function getClassName1()
+        {
+            $this->_calc();
+
+            return $this->className1;
+        }
+
+        /**
+         * Get ClassName2
+         *
+         * @return string
+         */
+        public function getClassName2()
+        {
+            $this->_calc();
+
+            return $this->className2;
+        }
+
+        /**
+         * Get getClassCategories1
+         *
+         * @return array
+         */
+        public function getClassCategories1()
+        {
+            $this->_calc();
+
+            return $this->classCategories1;
+        }
+
+        public function getClassCategories1AsFlip()
+        {
+            return array_flip($this->getClassCategories1());
+        }
+
+        /**
+         * Get getClassCategories2
+         *
+         * @return array
+         */
+        public function getClassCategories2($class_category1)
+        {
+            $this->_calc();
+
+            return isset($this->classCategories2[$class_category1]) ? $this->classCategories2[$class_category1] : [];
+        }
+
+        public function getClassCategories2AsFlip($class_category1)
+        {
+            return array_flip($this->getClassCategories2($class_category1));
+        }
+
+        /**
+         * Get StockFind
+         *
+         * @return bool
+         */
+        public function getStockFind()
+        {
+            $this->_calc();
+
+            return max($this->stockFinds);
+        }
+
+        /**
+         * Get Stock min
+         *
+         * @return integer
+         */
+        public function getStockMin()
+        {
+            $this->_calc();
+
+            return min($this->stocks);
+        }
+
+        /**
+         * Get Stock max
+         *
+         * @return integer
+         */
+        public function getStockMax()
+        {
+            $this->_calc();
+
+            return max($this->stocks);
+        }
+
+        /**
+         * Get StockUnlimited min
+         *
+         * @return integer
+         */
+        public function getStockUnlimitedMin()
+        {
+            $this->_calc();
+
+            return min($this->stockUnlimiteds);
+        }
+
+        /**
+         * Get StockUnlimited max
+         *
+         * @return integer
+         */
+        public function getStockUnlimitedMax()
+        {
+            $this->_calc();
+
+            return max($this->stockUnlimiteds);
+        }
+
+        /**
+         * Get Price01 min
+         *
+         * @return integer
+         */
+        public function getPrice01Min()
+        {
+            $this->_calc();
+
+            if (count($this->price01) == 0) {
+                return null;
+            }
+
+            return min($this->price01);
+        }
+
+        /**
+         * Get Price01 max
+         *
+         * @return integer
+         */
+        public function getPrice01Max()
+        {
+            $this->_calc();
+
+            if (count($this->price01) == 0) {
+                return null;
+            }
+
+            return max($this->price01);
+        }
+
+        /**
+         * Get Price02 min
+         *
+         * @return integer
+         */
+        public function getPrice02Min()
+        {
+            $this->_calc();
+
+            return min($this->price02);
+        }
+
+        /**
+         * Get Price02 max
+         *
+         * @return integer
+         */
+        public function getPrice02Max()
+        {
+            $this->_calc();
+
+            return max($this->price02);
+        }
+
+        /**
+         * Get Price01IncTax min
+         *
+         * @return integer
+         */
+        public function getPrice01IncTaxMin()
+        {
+            $this->_calc();
+
+            return min($this->price01IncTaxs);
+        }
+
+        /**
+         * Get Price01IncTax max
+         *
+         * @return integer
+         */
+        public function getPrice01IncTaxMax()
+        {
+            $this->_calc();
+
+            return max($this->price01IncTaxs);
+        }
+
+        /**
+         * Get Price02IncTax min
+         *
+         * @return integer
+         */
+        public function getPrice02IncTaxMin()
+        {
+            $this->_calc();
+
+            return min($this->price02IncTaxs);
+        }
+
+        /**
+         * Get Price02IncTax max
+         *
+         * @return integer
+         */
+        public function getPrice02IncTaxMax()
+        {
+            $this->_calc();
+
+            return max($this->price02IncTaxs);
+        }
+
+        /**
+         * Get Product_code min
+         *
+         * @return integer
+         */
+        public function getCodeMin()
+        {
+            $this->_calc();
+
+            $codes = [];
+            foreach ($this->codes as $code) {
+                if (!is_null($code)) {
+                    $codes[] = $code;
+                }
+            }
+
+            return count($codes) ? min($codes) : null;
+        }
+
+        /**
+         * Get Product_code max
+         *
+         * @return integer
+         */
+        public function getCodeMax()
+        {
+            $this->_calc();
+
+            $codes = [];
+            foreach ($this->codes as $code) {
+                if (!is_null($code)) {
+                    $codes[] = $code;
+                }
+            }
+
+            return count($codes) ? max($codes) : null;
+        }
+
+        public function getMainListImage()
+        {
+            $ProductImages = $this->getProductImage();
+
+            return empty($ProductImages) ? null : $ProductImages[0];
+        }
+
+        public function getMainFileName()
+        {
+            if (count($this->ProductImage) > 0) {
+                return $this->ProductImage[0];
+            } else {
+                return null;
             }
         }
-        return count($codes) ? max($codes) : null;
-    }
 
-    /**
-     * Get ClassCategories
-     *
-     * @return array
-     */
-    public function getClassCategories()
-    {
-        $this->_calc();
-
-        $class_categories = array(
-            '__unselected' => array(
-                '__unselected' => array(
-                    'name'              => '選択してください',
-                    'product_class_id'  => '',
-                ),
-            ),
-        );
-        foreach ($this->getProductClasses() as $ProductClass) {
-            /* @var $ProductClass \Eccube\Entity\ProductClass */
-            $ClassCategory1 = $ProductClass->getClassCategory1();
-            $ClassCategory2 = $ProductClass->getClassCategory2();
-
-            $class_category_id1 = $ClassCategory1 ? (string) $ClassCategory1->getId() : '__unselected2';
-            $class_category_id2 = $ClassCategory2 ? (string) $ClassCategory2->getId() : '';
-            $class_category_name1 = $ClassCategory1 ? $ClassCategory1->getName() . ($ProductClass->getStockFind() ? '' : ' (品切れ中)') : '';
-            $class_category_name2 = $ClassCategory2 ? $ClassCategory2->getName() . ($ProductClass->getStockFind() ? '' : ' (品切れ中)') : '';
-
-            $class_categories[$class_category_id1]['#'] = array(
-                'classcategory_id2' => '',
-                'name'              => '選択してください',
-                'product_class_id'  => '',
-            );
-            $class_categories[$class_category_id1]['#'.$class_category_id2] = array(
-                'classcategory_id2' => $class_category_id2,
-                'name'              => $class_category_name2,
-                'stock_find'        => $ProductClass->getStockFind(),
-                'price01'           => $ProductClass->getPrice01() === null ? '' : number_format($ProductClass->getPrice01IncTax()),
-                'price02'           => number_format($ProductClass->getPrice02IncTax()),
-                'product_class_id'  => (string) $ProductClass->getId(),
-                'product_code'      => $ProductClass->getCode() === null ? '' : $ProductClass->getCode(),
-                'product_type'      => (string) $ProductClass->getProductType()->getId(),
-            );
-        }
-
-        return $class_categories;
-    }
-
-    public function getMainListImage() {
-        $ProductImages = $this->getProductImage();
-        return empty($ProductImages) ? null : $ProductImages[0];
-    }
-
-    /**
-     * @var integer
-     */
-    private $id;
-
-    /**
-     * @var string
-     */
-    private $name;
-
-    /**
-     * @var string
-     */
-    private $note;
-
-    /**
-     * @var string
-     */
-    private $description_list;
-
-    /**
-     * @var string
-     */
-    private $description_detail;
-
-    /**
-     * @var string
-     */
-    private $search_word;
-
-    /**
-     * @var string
-     */
-    private $free_area;
-
-    /**
-     * @var integer
-     */
-    private $del_flg;
-
-    /**
-     * @var \DateTime
-     */
-    private $create_date;
-
-    /**
-     * @var \DateTime
-     */
-    private $update_date;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $ProductCategories;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $ProductClasses;
-
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $CustomerFavoriteProducts;
-
-    /**
-     * @var \Eccube\Entity\Member
-     */
-    private $Creator;
-
-    /**
-     * @var \Eccube\Entity\Master\Disp
-     */
-    private $Status;
-
-    /**
-     * Constructor
-     */
-    public function __construct()
-    {
-        $this->ProductCategories = new ArrayCollection();
-        $this->ProductClasses = new ArrayCollection();
-        $this->ProductStatuses = new ArrayCollection();
-        $this->CustomerFavoriteProducts = new ArrayCollection();
-        $this->ProductImage = new ArrayCollection();
-        $this->ProductTag = new ArrayCollection();
-    }
-
-    public function __clone()
-    {
-        $this->id = null;
-    }
-
-    public function copy()
-    {
-        // コピー対象外
-        $this->CustomerFavoriteProducts = new ArrayCollection();
-
-        $Categories = $this->getProductCategories();
-        $this->ProductCategories = new ArrayCollection();
-        foreach ($Categories as $Category) {
-            $CopyCategory = clone $Category;
-            $this->addProductCategory($CopyCategory);
-            $CopyCategory->setProduct($this);
-        }
-
-        $Classes = $this->getProductClasses();
-        $this->ProductClasses = new ArrayCollection();
-        foreach ($Classes as $Class) {
-            $CopyClass = clone $Class;
-            $this->addProductClass($CopyClass);
-            $CopyClass->setProduct($this);
-        }
-
-        $Images = $this->getProductImage();
-        $this->ProductImage = new ArrayCollection();
-        foreach ($Images as $Image) {
-            $CloneImage = clone $Image;
-            $this->addProductImage($CloneImage);
-            $CloneImage->setProduct($this);
-        }
-
-        $Tags = $this->getProductTag();
-        $this->ProductTag = new ArrayCollection();
-        foreach ($Tags as $Tag) {
-            $CloneTag = clone $Tag;
-            $this->addProductTag($CloneTag);
-            $CloneTag->setProduct($this);
-        }
-
-        return $this;
-    }
-
-    /**
-     * Get id
-     *
-     * @return integer
-     */
-    public function getId()
-    {
-        return $this->id;
-    }
-
-    /**
-     * Set name
-     *
-     * @param  string  $name
-     * @return Product
-     */
-    public function setName($name)
-    {
-        $this->name = $name;
-
-        return $this;
-    }
-
-    /**
-     * Get name
-     *
-     * @return string
-     */
-    public function getName()
-    {
-        return $this->name;
-    }
-
-    /**
-     * Set note
-     *
-     * @param  string  $note
-     * @return Product
-     */
-    public function setNote($note)
-    {
-        $this->note = $note;
-
-        return $this;
-    }
-
-    /**
-     * Get note
-     *
-     * @return string
-     */
-    public function getNote()
-    {
-        return $this->note;
-    }
-
-    /**
-     * Set description_list
-     *
-     * @param string $descriptionList
-     * @return Product
-     */
-    public function setDescriptionList($descriptionList)
-    {
-        $this->description_list = $descriptionList;
-
-        return $this;
-    }
-
-    /**
-     * Get description_list
-     *
-     * @return string
-     */
-    public function getDescriptionList()
-    {
-        return $this->description_list;
-    }
-
-    /**
-     * Set description_detail
-     *
-     * @param string $descriptionDetail
-     * @return Product
-     */
-    public function setDescriptionDetail($descriptionDetail)
-    {
-        $this->description_detail = $descriptionDetail;
-
-        return $this;
-    }
-
-    /**
-     * Get description_detail
-     *
-     * @return string
-     */
-    public function getDescriptionDetail()
-    {
-        return $this->description_detail;
-    }
-
-    /**
-     * Set search_word
-     *
-     * @param string $searchWord
-     * @return Product
-     */
-    public function setSearchWord($searchWord)
-    {
-        $this->search_word = $searchWord;
-
-        return $this;
-    }
-
-    /**
-     * Get search_word
-     *
-     * @return string
-     */
-    public function getSearchWord()
-    {
-        return $this->search_word;
-    }
-
-    /**
-     * Set free_area
-     *
-     * @param string $freeArea
-     * @return Product
-     */
-    public function setFreeArea($freeArea)
-    {
-        $this->free_area = $freeArea;
-
-        return $this;
-    }
-
-    /**
-     * Get free_area
-     *
-     * @return string
-     */
-    public function getFreeArea()
-    {
-        return $this->free_area;
-    }
-
-
-    /**
-     * Set del_flg
-     *
-     * @param  integer $delFlg
-     * @return Product
-     */
-    public function setDelFlg($delFlg)
-    {
-        $this->del_flg = $delFlg;
-
-        return $this;
-    }
-
-    /**
-     * Get del_flg
-     *
-     * @return integer
-     */
-    public function getDelFlg()
-    {
-        return $this->del_flg;
-    }
-
-    /**
-     * Set create_date
-     *
-     * @param  \DateTime $createDate
-     * @return Product
-     */
-    public function setCreateDate($createDate)
-    {
-        $this->create_date = $createDate;
-
-        return $this;
-    }
-
-    /**
-     * Get create_date
-     *
-     * @return \DateTime
-     */
-    public function getCreateDate()
-    {
-        return $this->create_date;
-    }
-
-    /**
-     * Set update_date
-     *
-     * @param  \DateTime $updateDate
-     * @return Product
-     */
-    public function setUpdateDate($updateDate)
-    {
-        $this->update_date = $updateDate;
-
-        return $this;
-    }
-
-    /**
-     * Get update_date
-     *
-     * @return \DateTime
-     */
-    public function getUpdateDate()
-    {
-        return $this->update_date;
-    }
-
-    /**
-     * Add ProductCategories
-     *
-     * @param  \Eccube\Entity\ProductCategory $productCategories
-     * @return Product
-     */
-    public function addProductCategory(\Eccube\Entity\ProductCategory $productCategories)
-    {
-        $this->ProductCategories[] = $productCategories;
-
-        return $this;
-    }
-
-    /**
-     * Remove ProductCategories
-     *
-     * @param \Eccube\Entity\ProductCategory $productCategories
-     */
-    public function removeProductCategory(\Eccube\Entity\ProductCategory $productCategories)
-    {
-        $this->ProductCategories->removeElement($productCategories);
-    }
-
-    /**
-     * Get ProductCategories
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getProductCategories()
-    {
-        return $this->ProductCategories;
-    }
-
-    /**
-     * Add ProductClasses
-     *
-     * @param  \Eccube\Entity\ProductClass $productClasses
-     * @return Product
-     */
-    public function addProductClass(\Eccube\Entity\ProductClass $productClasses)
-    {
-        $this->ProductClasses[] = $productClasses;
-
-        return $this;
-    }
-
-    /**
-     * Remove ProductClasses
-     *
-     * @param \Eccube\Entity\ProductClass $productClasses
-     */
-    public function removeProductClass(\Eccube\Entity\ProductClass $productClasses)
-    {
-        $this->ProductClasses->removeElement($productClasses);
-    }
-
-    /**
-     * Get ProductClasses
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getProductClasses()
-    {
-        return $this->ProductClasses;
-    }
-
-    public function hasProductClass()
-    {
-        foreach ($this->ProductClasses as $ProductClass) {
-            if (!is_null($ProductClass->getClassCategory1()) && $ProductClass->getDelFlg() == Constant::DISABLED) {
-                return true;
+        public function hasProductClass()
+        {
+            foreach ($this->ProductClasses as $ProductClass) {
+                if (!$ProductClass->isVisible()) {
+                    continue;
+                }
+                if (!is_null($ProductClass->getClassCategory1())) {
+                    return true;
+                }
             }
+
+            return false;
         }
-        return false;
-    }
 
+        /**
+         * @var integer
+         *
+         * @ORM\Column(name="id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="IDENTITY")
+         */
+        private $id;
 
-    /**
-     * Add CustomerFavoriteProducts
-     *
-     * @param  \Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProducts
-     * @return Product
-     */
-    public function addCustomerFavoriteProduct(\Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProducts)
-    {
-        $this->CustomerFavoriteProducts[] = $customerFavoriteProducts;
+        /**
+         * @var string
+         *
+         * @ORM\Column(name="name", type="string", length=255)
+         */
+        private $name;
 
-        return $this;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="note", type="string", length=4000, nullable=true)
+         */
+        private $note;
 
-    /**
-     * Remove CustomerFavoriteProducts
-     *
-     * @param \Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProducts
-     */
-    public function removeCustomerFavoriteProduct(\Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProducts)
-    {
-        $this->CustomerFavoriteProducts->removeElement($customerFavoriteProducts);
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="description_list", type="string", length=4000, nullable=true)
+         */
+        private $description_list;
 
-    /**
-     * Get CustomerFavoriteProducts
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getCustomerFavoriteProducts()
-    {
-        return $this->CustomerFavoriteProducts;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="description_detail", type="string", length=4000, nullable=true)
+         */
+        private $description_detail;
 
-    /**
-     * Set Creator
-     *
-     * @param  \Eccube\Entity\Member $creator
-     * @return Product
-     */
-    public function setCreator(\Eccube\Entity\Member $creator)
-    {
-        $this->Creator = $creator;
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="search_word", type="string", length=4000, nullable=true)
+         */
+        private $search_word;
 
-        return $this;
-    }
+        /**
+         * @var string|null
+         *
+         * @ORM\Column(name="free_area", type="text", nullable=true)
+         */
+        private $free_area;
 
-    /**
-     * Get Creator
-     *
-     * @return \Eccube\Entity\Member
-     */
-    public function getCreator()
-    {
-        if (EntityUtil::isEmpty($this->Creator)) {
-            return null;
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="create_date", type="datetimetz")
+         */
+        private $create_date;
+
+        /**
+         * @var \DateTime
+         *
+         * @ORM\Column(name="update_date", type="datetimetz")
+         */
+        private $update_date;
+
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\ProductCategory", mappedBy="Product", cascade={"persist","remove"})
+         */
+        private $ProductCategories;
+
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\ProductClass", mappedBy="Product", cascade={"persist","remove"})
+         */
+        private $ProductClasses;
+
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\ProductImage", mappedBy="Product", cascade={"remove"})
+         * @ORM\OrderBy({
+         *     "sort_no"="ASC"
+         * })
+         */
+        private $ProductImage;
+
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\ProductTag", mappedBy="Product", cascade={"remove"})
+         */
+        private $ProductTag;
+
+        /**
+         * @var \Doctrine\Common\Collections\Collection
+         *
+         * @ORM\OneToMany(targetEntity="Eccube\Entity\CustomerFavoriteProduct", mappedBy="Product")
+         */
+        private $CustomerFavoriteProducts;
+
+        /**
+         * @var \Eccube\Entity\Member
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Member")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="creator_id", referencedColumnName="id")
+         * })
+         */
+        private $Creator;
+
+        /**
+         * @var \Eccube\Entity\Master\ProductStatus
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Master\ProductStatus")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="product_status_id", referencedColumnName="id")
+         * })
+         */
+        private $Status;
+
+        /**
+         * Constructor
+         */
+        public function __construct()
+        {
+            $this->ProductCategories = new \Doctrine\Common\Collections\ArrayCollection();
+            $this->ProductClasses = new \Doctrine\Common\Collections\ArrayCollection();
+            $this->ProductImage = new \Doctrine\Common\Collections\ArrayCollection();
+            $this->ProductTag = new \Doctrine\Common\Collections\ArrayCollection();
+            $this->CustomerFavoriteProducts = new \Doctrine\Common\Collections\ArrayCollection();
         }
-        return $this->Creator;
-    }
 
-    /**
-     * Set Status
-     *
-     * @param  \Eccube\Entity\Master\Disp $status
-     * @return Product
-     */
-    public function setStatus(\Eccube\Entity\Master\Disp $status = null)
-    {
-        $this->Status = $status;
+        public function __clone()
+        {
+            $this->id = null;
+        }
 
-        return $this;
-    }
+        public function copy()
+        {
+            // コピー対象外
+            $this->CustomerFavoriteProducts = new ArrayCollection();
 
-    /**
-     * Get Status
-     *
-     * @return \Eccube\Entity\Master\Disp
-     */
-    public function getStatus()
-    {
-        return $this->Status;
-    }
+            $Categories = $this->getProductCategories();
+            $this->ProductCategories = new ArrayCollection();
+            foreach ($Categories as $Category) {
+                $CopyCategory = clone $Category;
+                $this->addProductCategory($CopyCategory);
+                $CopyCategory->setProduct($this);
+            }
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $ProductImage;
+            $Classes = $this->getProductClasses();
+            $this->ProductClasses = new ArrayCollection();
+            foreach ($Classes as $Class) {
+                $CopyClass = clone $Class;
+                $this->addProductClass($CopyClass);
+                $CopyClass->setProduct($this);
+            }
 
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    private $ProductTag;
+            $Images = $this->getProductImage();
+            $this->ProductImage = new ArrayCollection();
+            foreach ($Images as $Image) {
+                $CloneImage = clone $Image;
+                $this->addProductImage($CloneImage);
+                $CloneImage->setProduct($this);
+            }
 
+            $Tags = $this->getProductTag();
+            $this->ProductTag = new ArrayCollection();
+            foreach ($Tags as $Tag) {
+                $CloneTag = clone $Tag;
+                $this->addProductTag($CloneTag);
+                $CloneTag->setProduct($this);
+            }
 
-    /**
-     * Add ProductImage
-     *
-     * @param \Eccube\Entity\ProductImage $productImage
-     * @return Product
-     */
-    public function addProductImage(\Eccube\Entity\ProductImage $productImage)
-    {
-        $this->ProductImage[] = $productImage;
+            return $this;
+        }
 
-        return $this;
-    }
+        /**
+         * Get id.
+         *
+         * @return int
+         */
+        public function getId()
+        {
+            return $this->id;
+        }
 
-    /**
-     * Remove ProductImage
-     *
-     * @param \Eccube\Entity\ProductImage $productImage
-     */
-    public function removeProductImage(\Eccube\Entity\ProductImage $productImage)
-    {
-        $this->ProductImage->removeElement($productImage);
-    }
+        /**
+         * Set name.
+         *
+         * @param string $name
+         *
+         * @return Product
+         */
+        public function setName($name)
+        {
+            $this->name = $name;
 
-    /**
-     * Get ProductImage
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getProductImage()
-    {
-        return $this->ProductImage;
-    }
+            return $this;
+        }
 
-    public function getMainFileName()
-    {
-        if (count($this->ProductImage) > 0) {
-            return $this->ProductImage[0];
-        } else {
-            return null;
+        /**
+         * Get name.
+         *
+         * @return string
+         */
+        public function getName()
+        {
+            return $this->name;
+        }
+
+        /**
+         * Set note.
+         *
+         * @param string|null $note
+         *
+         * @return Product
+         */
+        public function setNote($note = null)
+        {
+            $this->note = $note;
+
+            return $this;
+        }
+
+        /**
+         * Get note.
+         *
+         * @return string|null
+         */
+        public function getNote()
+        {
+            return $this->note;
+        }
+
+        /**
+         * Set descriptionList.
+         *
+         * @param string|null $descriptionList
+         *
+         * @return Product
+         */
+        public function setDescriptionList($descriptionList = null)
+        {
+            $this->description_list = $descriptionList;
+
+            return $this;
+        }
+
+        /**
+         * Get descriptionList.
+         *
+         * @return string|null
+         */
+        public function getDescriptionList()
+        {
+            return $this->description_list;
+        }
+
+        /**
+         * Set descriptionDetail.
+         *
+         * @param string|null $descriptionDetail
+         *
+         * @return Product
+         */
+        public function setDescriptionDetail($descriptionDetail = null)
+        {
+            $this->description_detail = $descriptionDetail;
+
+            return $this;
+        }
+
+        /**
+         * Get descriptionDetail.
+         *
+         * @return string|null
+         */
+        public function getDescriptionDetail()
+        {
+            return $this->description_detail;
+        }
+
+        /**
+         * Set searchWord.
+         *
+         * @param string|null $searchWord
+         *
+         * @return Product
+         */
+        public function setSearchWord($searchWord = null)
+        {
+            $this->search_word = $searchWord;
+
+            return $this;
+        }
+
+        /**
+         * Get searchWord.
+         *
+         * @return string|null
+         */
+        public function getSearchWord()
+        {
+            return $this->search_word;
+        }
+
+        /**
+         * Set freeArea.
+         *
+         * @param string|null $freeArea
+         *
+         * @return Product
+         */
+        public function setFreeArea($freeArea = null)
+        {
+            $this->free_area = $freeArea;
+
+            return $this;
+        }
+
+        /**
+         * Get freeArea.
+         *
+         * @return string|null
+         */
+        public function getFreeArea()
+        {
+            return $this->free_area;
+        }
+
+        /**
+         * Set createDate.
+         *
+         * @param \DateTime $createDate
+         *
+         * @return Product
+         */
+        public function setCreateDate($createDate)
+        {
+            $this->create_date = $createDate;
+
+            return $this;
+        }
+
+        /**
+         * Get createDate.
+         *
+         * @return \DateTime
+         */
+        public function getCreateDate()
+        {
+            return $this->create_date;
+        }
+
+        /**
+         * Set updateDate.
+         *
+         * @param \DateTime $updateDate
+         *
+         * @return Product
+         */
+        public function setUpdateDate($updateDate)
+        {
+            $this->update_date = $updateDate;
+
+            return $this;
+        }
+
+        /**
+         * Get updateDate.
+         *
+         * @return \DateTime
+         */
+        public function getUpdateDate()
+        {
+            return $this->update_date;
+        }
+
+        /**
+         * Add productCategory.
+         *
+         * @param \Eccube\Entity\ProductCategory $productCategory
+         *
+         * @return Product
+         */
+        public function addProductCategory(\Eccube\Entity\ProductCategory $productCategory)
+        {
+            $this->ProductCategories[] = $productCategory;
+
+            return $this;
+        }
+
+        /**
+         * Remove productCategory.
+         *
+         * @param \Eccube\Entity\ProductCategory $productCategory
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removeProductCategory(\Eccube\Entity\ProductCategory $productCategory)
+        {
+            return $this->ProductCategories->removeElement($productCategory);
+        }
+
+        /**
+         * Get productCategories.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getProductCategories()
+        {
+            return $this->ProductCategories;
+        }
+
+        /**
+         * Add productClass.
+         *
+         * @param \Eccube\Entity\ProductClass $productClass
+         *
+         * @return Product
+         */
+        public function addProductClass(\Eccube\Entity\ProductClass $productClass)
+        {
+            $this->ProductClasses[] = $productClass;
+
+            return $this;
+        }
+
+        /**
+         * Remove productClass.
+         *
+         * @param \Eccube\Entity\ProductClass $productClass
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removeProductClass(\Eccube\Entity\ProductClass $productClass)
+        {
+            return $this->ProductClasses->removeElement($productClass);
+        }
+
+        /**
+         * Get productClasses.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getProductClasses()
+        {
+            return $this->ProductClasses;
+        }
+
+        /**
+         * Add productImage.
+         *
+         * @param \Eccube\Entity\ProductImage $productImage
+         *
+         * @return Product
+         */
+        public function addProductImage(\Eccube\Entity\ProductImage $productImage)
+        {
+            $this->ProductImage[] = $productImage;
+
+            return $this;
+        }
+
+        /**
+         * Remove productImage.
+         *
+         * @param \Eccube\Entity\ProductImage $productImage
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removeProductImage(\Eccube\Entity\ProductImage $productImage)
+        {
+            return $this->ProductImage->removeElement($productImage);
+        }
+
+        /**
+         * Get productImage.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getProductImage()
+        {
+            return $this->ProductImage;
+        }
+
+        /**
+         * Add productTag.
+         *
+         * @param \Eccube\Entity\ProductTag $productTag
+         *
+         * @return Product
+         */
+        public function addProductTag(\Eccube\Entity\ProductTag $productTag)
+        {
+            $this->ProductTag[] = $productTag;
+
+            return $this;
+        }
+
+        /**
+         * Remove productTag.
+         *
+         * @param \Eccube\Entity\ProductTag $productTag
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removeProductTag(\Eccube\Entity\ProductTag $productTag)
+        {
+            return $this->ProductTag->removeElement($productTag);
+        }
+
+        /**
+         * Get productTag.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getProductTag()
+        {
+            return $this->ProductTag;
+        }
+
+        /**
+         * Get Tag
+         * フロント側タグsort_no順の配列を作成する
+         *
+         * @return []Tag
+         */
+        public function getTags()
+        {
+            $tags = [];
+
+            foreach ($this->getProductTag() as $productTag) {
+                $tags[] = $productTag->getTag();
+            }
+
+            usort($tags, function (Tag $tag1, Tag $tag2) {
+                return $tag1->getSortNo() < $tag2->getSortNo();
+            });
+
+            return $tags;
+        }
+
+        /**
+         * Add customerFavoriteProduct.
+         *
+         * @param \Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProduct
+         *
+         * @return Product
+         */
+        public function addCustomerFavoriteProduct(\Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProduct)
+        {
+            $this->CustomerFavoriteProducts[] = $customerFavoriteProduct;
+
+            return $this;
+        }
+
+        /**
+         * Remove customerFavoriteProduct.
+         *
+         * @param \Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProduct
+         *
+         * @return boolean TRUE if this collection contained the specified element, FALSE otherwise.
+         */
+        public function removeCustomerFavoriteProduct(\Eccube\Entity\CustomerFavoriteProduct $customerFavoriteProduct)
+        {
+            return $this->CustomerFavoriteProducts->removeElement($customerFavoriteProduct);
+        }
+
+        /**
+         * Get customerFavoriteProducts.
+         *
+         * @return \Doctrine\Common\Collections\Collection
+         */
+        public function getCustomerFavoriteProducts()
+        {
+            return $this->CustomerFavoriteProducts;
+        }
+
+        /**
+         * Set creator.
+         *
+         * @param \Eccube\Entity\Member|null $creator
+         *
+         * @return Product
+         */
+        public function setCreator(\Eccube\Entity\Member $creator = null)
+        {
+            $this->Creator = $creator;
+
+            return $this;
+        }
+
+        /**
+         * Get creator.
+         *
+         * @return \Eccube\Entity\Member|null
+         */
+        public function getCreator()
+        {
+            return $this->Creator;
+        }
+
+        /**
+         * Set status.
+         *
+         * @param \Eccube\Entity\Master\ProductStatus|null $status
+         *
+         * @return Product
+         */
+        public function setStatus(\Eccube\Entity\Master\ProductStatus $status = null)
+        {
+            $this->Status = $status;
+
+            return $this;
+        }
+
+        /**
+         * Get status.
+         *
+         * @return \Eccube\Entity\Master\ProductStatus|null
+         */
+        public function getStatus()
+        {
+            return $this->Status;
         }
     }
-
-    /**
-     * Add ProductTag
-     *
-     * @param \Eccube\Entity\ProductTag $productTag
-     * @return Product
-     */
-    public function addProductTag(\Eccube\Entity\ProductTag $productTag)
-    {
-        $this->ProductTag[] = $productTag;
-
-        return $this;
-    }
-
-    /**
-     * Remove ProductTag
-     *
-     * @param \Eccube\Entity\ProductTag $productTag
-     */
-    public function removeProductTag(\Eccube\Entity\ProductTag $productTag)
-    {
-        $this->ProductTag->removeElement($productTag);
-    }
-
-    /**
-     * Get ProductTag
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getProductTag()
-    {
-        return $this->ProductTag;
-    }
-
-
 }

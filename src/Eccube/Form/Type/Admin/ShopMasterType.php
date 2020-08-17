@@ -1,39 +1,54 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Form\EventListener\ConvertKanaListener;
+use Eccube\Form\Type\AddressType;
+use Eccube\Form\Type\PriceType;
+use Eccube\Form\Type\PhoneNumberType;
+use Eccube\Form\Type\ToggleSwitchType;
+use Eccube\Form\Type\PostalType;
+use Eccube\Form\Validator\Email;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Class ShopMasterType
+ */
 class ShopMasterType extends AbstractType
 {
-    public function __construct($config)
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
+
+    /**
+     * ShopMasterType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -41,280 +56,200 @@ class ShopMasterType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $config = $this->config;
-
         $builder
-            ->add('company_name', 'text', array(
-                'label' => '会社名',
+            ->add('company_name', TextType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    )),
-                )
-            ))
-            ->add('shop_name', 'text', array(
-                'label' => '店名',
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('shop_name', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    )),
-                )
-            ))
-            ->add('shop_name_eng', 'text', array(
-                'label' => '店名(英語表記)',
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('shop_name_eng', TextType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['mtext_len'],
-                    )),
-                    new Assert\Regex(array(
-                        'pattern' => '/^[[:graph:][:space:]]+$/i'
-                    )),
-                )
-            ))
-            ->add('zip', 'zip', array(
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_mtext_len'],
+                    ]),
+                    new Assert\Regex([
+                        'pattern' => '/^[[:graph:][:space:]]+$/i',
+                    ]),
+                ],
+            ])
+            ->add('postal_code', PostalType::class, [
                 'required' => false,
-            ))
-            ->add('address', 'address', array(
+            ])
+            ->add('address', AddressType::class, [
                 'required' => false,
-            ))
-            ->add('tel', 'tel', array(
+            ])
+            ->add('phone_number', PhoneNumberType::class, [
                 'required' => false,
-            ))
-            ->add('fax', 'tel', array(
+            ])
+            ->add('business_hour', TextType::class, [
                 'required' => false,
-            ))
-            ->add('business_hour', 'text', array(
-                'label' => '店舗営業時間',
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('email01', EmailType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['stext_len'],
-                    ))
-                )
-            ))
-            ->add('email01', 'email', array(
-                'label' => '送信元メールアドレス(From)',
-                'required' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('email02', 'email', array(
-                'label' => '問い合わせ受付メールアドレス(From, ReplyTo)',
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('email02', EmailType::class, [
                 'required' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('email03', 'email', array(
-                'label' => '返信受付メールアドレス(ReplyTo)',
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('email03', EmailType::class, [
                 'required' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('email04', 'email', array(
-                'label' => '送信エラー受付メールアドレス(ReturnPath)',
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('email04', EmailType::class, [
                 'required' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('good_traded', 'textarea', array(
-                'label' => '取り扱い商品',
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('good_traded', TextareaType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['lltext_len'],
-                    )),
-                ),
-            ))
-            ->add('message', 'textarea', array(
-                'label' => 'メッセージ',
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_lltext_len'],
+                    ]),
+                ],
+            ])
+            ->add('message', TextareaType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['lltext_len'],
-                    )),
-                ),
-            ))
-
+                'constraints' => [
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_lltext_len'],
+                    ]),
+                ],
+            ])
             // 送料設定
-            ->add('delivery_free_amount', 'money', array(
-                'label' => '送料無料条件(金額)',
+            ->add('delivery_free_amount', PriceType::class, [
                 'required' => false,
-                'currency' => 'JPY',
-                'precision' => 0,
-                'scale' => 0,
-                'grouping' => true,
-                'constraints' => array(
-                    new Assert\Length(array(
-                        'max' => $config['price_len'],
-                    )),
-                    new Assert\Regex(array(
-                        'pattern' => "/^\d+$/u",
-                        'message' => 'form.type.numeric.invalid'
-                    )),
-                ),
-            ))
-            ->add('delivery_free_quantity', 'integer', array(
-                'label' => '送料無料条件(数量)',
-                'required' => false,
-                'constraints' => array(
-                    new Assert\Regex(array(
-                        'pattern' => "/^\d+$/u",
-                        'message' => 'form.type.numeric.invalid'
-                    )),
-                ),
-            ))
-            ->add('option_product_delivery_fee', 'choice', array(
-                'label' => '商品ごとの送料設定を有効にする',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-            ->add('option_multiple_shipping', 'choice', array(
-                'label' => '複数配送を有効にする',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
+            ])
 
+            ->add('delivery_free_quantity', IntegerType::class, [
+                'required' => false,
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => "/^\d+$/u",
+                        'message' => 'form_error.numeric_only',
+                    ]),
+                ],
+            ])
+            ->add('option_product_delivery_fee', ToggleSwitchType::class)
             // 会員設定
-            ->add('option_customer_activate', 'choice', array(
-                'label' => '仮会員を有効にする',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-            ->add('option_mypage_order_status_display', 'choice', array(
-                'label' => 'マイページに注文状況を表示する',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-            ->add('option_remember_me', 'choice', array(
-                'label' => '自動ログイン機能を有効にする',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-            ->add('option_favorite_product', 'choice', array(
-                'label' => 'お気に入り商品機能を利用する',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-
-            // 商品設定
-            ->add('nostock_hidden', 'choice', array(
-                'label' => '在庫切れ商品を非表示にする',
-                'choices' => array(
-                    '0' => '無効',
-                    '1' => '有効',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-
-            // 地図設定
-            ->add('latitude', 'number', array(
-                'label' => '緯度',
+            ->add('option_customer_activate', ToggleSwitchType::class)
+            // マイページに注文状況を表示する
+            ->add('option_mypage_order_status_display', ToggleSwitchType::class)
+            // 自動ログイン
+            ->add('option_remember_me', ToggleSwitchType::class)
+            // お気に入り商品設定
+            ->add('option_favorite_product', ToggleSwitchType::class)
+            // 在庫切れ商品を非表示にする
+            ->add('option_nostock_hidden', ToggleSwitchType::class)
+            // 個別税率設定
+            ->add('option_product_tax_rule', ToggleSwitchType::class)
+            // ポイント設定
+            ->add('option_point', ToggleSwitchType::class)
+            ->add('basic_point_rate', NumberType::class, [
                 'required' => false,
-                'precision' => 6,
-                'constraints' => array(
-                    new Assert\Regex(array(
-                        'pattern' => '/^-?([0-8]?[0-9]\.?[0-9]{0,6}|90\.?0{0,6})$/',
-                        'message' => 'admin.shop.latitude.invalid'))
-                )
-            ))
-            ->add('longitude', 'number', array(
-                'label' => '経度',
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => "/^\d+$/u",
+                        'message' => 'form_error.numeric_only',
+                    ]),
+                    new Assert\Range([
+                        'min' => 1,
+                        'max' => 100,
+                    ]),
+                ],
+            ])
+            ->add('point_conversion_rate', NumberType::class, [
                 'required' => false,
-                'precision' => 6,
-                'constraints' => array(
-                    new Assert\Regex(array(
-                        'pattern' => '/^-?((1?[0-7]?|[0-9]?)[0-9]\.?[0-9]{0,6}|180\.?0{0,6})$/',
-                        'message' => 'admin.shop.longitude.invalid'))
-                ),
-            ))
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => "/^\d+$/u",
+                        'message' => 'form_error.numeric_only',
+                    ]),
+                    new Assert\Range([
+                        'min' => 1,
+                        'max' => 100,
+                    ]),
+                ],
+            ])
         ;
 
         $builder->add(
             $builder
-                ->create('company_kana', 'text', array(
-                    'label' => '会社名(フリガナ)',
+                ->create('company_kana', TextType::class, [
                     'required' => false,
-                    'constraints' => array(
-                        new Assert\Regex(array(
-                            'pattern' => "/^[ァ-ヶｦ-ﾟー]+$/u",
-                        )),
-                        new Assert\Length(array(
-                            'max' => $config['stext_len'],
-                        )),
-                    ),
-                ))
-                ->addEventSubscriber(new \Eccube\EventListener\ConvertKanaListener('CV'))
+                    'constraints' => [
+                        new Assert\Regex([
+                            'pattern' => '/^[ァ-ヶｦ-ﾟー]+$/u',
+                        ]),
+                        new Assert\Length([
+                            'max' => $this->eccubeConfig['eccube_stext_len'],
+                        ]),
+                    ],
+                ])
+                ->addEventSubscriber(new ConvertKanaListener('CV'))
         );
 
         $builder->add(
             $builder
-                ->create('shop_kana', 'text', array(
-                    'label' => '店名(フリガナ)',
+                ->create('shop_kana', TextType::class, [
                     'required' => false,
-                    'constraints' => array(
-                        new Assert\Length(array(
-                            'max' => $config['stext_len'],
-                        )),
-                        new Assert\Regex(array(
-                            'pattern' => "/^[ァ-ヶｦ-ﾟー]+$/u",
-                        )),
-                    )
-                ))
-                ->addEventSubscriber(new \Eccube\EventListener\ConvertKanaListener('CV'))
+                    'constraints' => [
+                        new Assert\Length([
+                            'max' => $this->eccubeConfig['eccube_stext_len'],
+                        ]),
+                        new Assert\Regex([
+                            'pattern' => '/^[ァ-ヶｦ-ﾟー]+$/u',
+                        ]),
+                    ],
+                ])
+                ->addEventSubscriber(new ConvertKanaListener('CV'))
         );
     }
 
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'data_class' => 'Eccube\Entity\BaseInfo',
-        ));
+        $resolver->setDefaults([
+            'data_class' => \Eccube\Entity\BaseInfo::class,
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'shop_master';
     }

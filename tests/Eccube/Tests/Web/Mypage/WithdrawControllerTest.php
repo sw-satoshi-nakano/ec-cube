@@ -1,93 +1,105 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Web\Mypage;
 
+use Eccube\Entity\Customer;
+use Eccube\Repository\BaseInfoRepository;
 use Eccube\Tests\Web\AbstractWebTestCase;
 
 class WithdrawControllerTest extends AbstractWebTestCase
 {
-
+    /**
+     * @var Customer
+     */
     protected $Customer;
 
     public function setUp()
     {
         parent::setUp();
-        $this->initializeMailCatcher();
         $this->Customer = $this->createCustomer();
     }
 
     public function tearDown()
     {
-        $this->cleanUpMailCatcherMessages();
         parent::tearDown();
     }
 
     public function testIndex()
     {
-        $this->logIn($this->Customer);
-        $client = $this->client;
+        $this->logInTo($this->Customer);
 
-        $client->request(
+        $this->client->request(
             'GET',
-            $this->app->path('mypage_withdraw')
+            $this->generateUrl('mypage_withdraw')
         );
-        $this->assertTrue($client->getResponse()->isSuccessful());
+        $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
 
     public function testIndexWithPostConfirm()
     {
-        $this->logIn($this->Customer);
-        $client = $this->client;
+        $this->logInTo($this->Customer);
 
-        $crawler = $client->request(
+        $crawler = $this->client->request(
             'POST',
-            $this->app->path('mypage_withdraw'),
-            array(
-                'form' => array('_token' => 'dummy'),
-                'mode' => 'confirm'
-            )
+            $this->generateUrl('mypage_withdraw'),
+            [
+                'form' => ['_token' => 'dummy'],
+                'mode' => 'confirm',
+            ]
         );
 
-        $this->assertTrue($client->getResponse()->isSuccessful());
+        $this->assertTrue($this->client->getResponse()->isSuccessful());
 
         $this->expected = '退会手続きを実行してもよろしいでしょうか？';
-        $this->actual = $crawler->filter('h3')->text();
+        $this->actual = $crawler->filter('p.ec-withdrawConfirmRole__title')->text();
         $this->verify();
     }
 
     public function testIndexWithPostComplete()
     {
-        $this->logIn($this->Customer);
-        $client = $this->client;
+        $this->client->enableProfiler();
+        $this->logInTo($this->Customer);
 
-        $crawler = $client->request(
+        $crawler = $this->client->request(
             'POST',
-            $this->app->path('mypage_withdraw'),
-            array(
-                'form' => array('_token' => 'dummy'),
-                'mode' => 'complete'
-            )
+            $this->generateUrl('mypage_withdraw'),
+            [
+                'form' => ['_token' => 'dummy'],
+                'mode' => 'complete',
+            ]
         );
 
-        $this->assertTrue($client->getResponse()->isRedirect($this->app->url('mypage_withdraw_complete')));
+        $this->assertRegExp('/@dummy.dummy/', $this->Customer->getEmail());
 
-        $Messages = $this->getMailCatcherMessages();
-        $Message = $this->getMailCatcherMessage($Messages[0]->id);
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('mypage_withdraw_complete')));
 
-        $BaseInfo = $this->app['eccube.repository.base_info']->get();
-        $this->expected = '[' . $BaseInfo->getShopName() . '] 退会手続きのご完了';
-        $this->actual = $Message->subject;
+        $Messages = $this->getMailCollector(false)->getMessages();
+        /** @var \Swift_Message $Message */
+        $Message = $Messages[0];
+
+        $BaseInfo = $this->container->get(BaseInfoRepository::class)->get();
+        $this->expected = '['.$BaseInfo->getShopName().'] 退会手続きのご完了';
+        $this->actual = $Message->getSubject();
         $this->verify();
     }
 
     public function testComplete()
     {
-        $client = $this->client;
-
-        $client->request(
+        $this->client->request(
             'GET',
-            $this->app->path('mypage_withdraw_complete')
+            $this->generateUrl('mypage_withdraw_complete')
         );
-        $this->assertTrue($client->getResponse()->isSuccessful());
+        $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
 }

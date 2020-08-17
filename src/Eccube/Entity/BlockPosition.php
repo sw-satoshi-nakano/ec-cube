@@ -1,208 +1,228 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * BlockPosition
- */
-class BlockPosition extends \Eccube\Entity\AbstractEntity
-{
+if (!class_exists('\Eccube\Entity\BlockPosition')) {
     /**
-     * @var integer
-     */
-    private $page_id;
-
-    /**
-     * @var integer
-     */
-    private $target_id;
-
-    /**
-     * @var integer
-     */
-    private $block_id;
-
-    /**
-     * @var integer
-     */
-    private $block_row;
-
-    /**
-     * @var integer
-     */
-    private $anywhere;
-
-    /**
-     * @var \Eccube\Entity\Block
-     */
-    private $Block;
-
-    /**
-     * @var \Eccube\Entity\PageLayout
-     */
-    private $PageLayout;
-
-
-    /**
-     * Set page_id
+     * BlockPosition
      *
-     * @param integer $pageId
-     * @return BlockPosition
+     * @ORM\Table(name="dtb_block_position")
+     * @ORM\InheritanceType("SINGLE_TABLE")
+     * @ORM\DiscriminatorColumn(name="discriminator_type", type="string", length=255)
+     * @ORM\HasLifecycleCallbacks()
+     * @ORM\Entity(repositoryClass="Eccube\Repository\BlockPositionRepository")
      */
-    public function setPageId($pageId)
+    class BlockPosition extends \Eccube\Entity\AbstractEntity
     {
-        $this->page_id = $pageId;
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="section", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="NONE")
+         */
+        private $section;
 
-        return $this;
-    }
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="block_id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="NONE")
+         */
+        private $block_id;
 
-    /**
-     * Get page_id
-     *
-     * @return integer 
-     */
-    public function getPageId()
-    {
-        return $this->page_id;
-    }
+        /**
+         * @var int
+         *
+         * @ORM\Column(name="layout_id", type="integer", options={"unsigned":true})
+         * @ORM\Id
+         * @ORM\GeneratedValue(strategy="NONE")
+         */
+        private $layout_id;
 
-    /**
-     * Set target_id
-     *
-     * @param integer $targetId
-     * @return BlockPosition
-     */
-    public function setTargetId($targetId)
-    {
-        $this->target_id = $targetId;
+        /**
+         * @var int|null
+         *
+         * @ORM\Column(name="block_row", type="integer", nullable=true, options={"unsigned":true})
+         */
+        private $block_row;
 
-        return $this;
-    }
+        /**
+         * @var \Eccube\Entity\Block
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Block", inversedBy="BlockPositions")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="block_id", referencedColumnName="id")
+         * })
+         */
+        private $Block;
 
-    /**
-     * Get target_id
-     *
-     * @return integer 
-     */
-    public function getTargetId()
-    {
-        return $this->target_id;
-    }
+        /**
+         * @var \Eccube\Entity\Layout
+         *
+         * @ORM\ManyToOne(targetEntity="Eccube\Entity\Layout", inversedBy="BlockPositions")
+         * @ORM\JoinColumns({
+         *   @ORM\JoinColumn(name="layout_id", referencedColumnName="id")
+         * })
+         */
+        private $Layout;
 
-    /**
-     * Set block_id
-     *
-     * @param integer $blockId
-     * @return BlockPosition
-     */
-    public function setBlockId($blockId)
-    {
-        $this->block_id = $blockId;
+        /**
+         * Set section.
+         *
+         * @param int $section
+         *
+         * @return BlockPosition
+         */
+        public function setSection($section)
+        {
+            $this->section = $section;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get block_id
-     *
-     * @return integer 
-     */
-    public function getBlockId()
-    {
-        return $this->block_id;
-    }
+        /**
+         * Get section.
+         *
+         * @return int
+         */
+        public function getSection()
+        {
+            return $this->section;
+        }
 
-    /**
-     * Set block_row
-     *
-     * @param integer $blockRow
-     * @return BlockPosition
-     */
-    public function setBlockRow($blockRow)
-    {
-        $this->block_row = $blockRow;
+        /**
+         * Set blockId.
+         *
+         * @param int $blockId
+         *
+         * @return BlockPosition
+         */
+        public function setBlockId($blockId)
+        {
+            $this->block_id = $blockId;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get block_row
-     *
-     * @return integer 
-     */
-    public function getBlockRow()
-    {
-        return $this->block_row;
-    }
+        /**
+         * Get blockId.
+         *
+         * @return int
+         */
+        public function getBlockId()
+        {
+            return $this->block_id;
+        }
 
-    /**
-     * Set anywhere
-     *
-     * @param integer $anywhere
-     * @return BlockPosition
-     */
-    public function setAnywhere($anywhere)
-    {
-        $this->anywhere = $anywhere;
+        /**
+         * Set layoutId.
+         *
+         * @param int $layoutId
+         *
+         * @return BlockPosition
+         */
+        public function setLayoutId($layoutId)
+        {
+            $this->layout_id = $layoutId;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get anywhere
-     *
-     * @return integer 
-     */
-    public function getAnywhere()
-    {
-        return $this->anywhere;
-    }
+        /**
+         * Get layoutId.
+         *
+         * @return int
+         */
+        public function getLayoutId()
+        {
+            return $this->layout_id;
+        }
 
-    /**
-     * Set Block
-     *
-     * @param \Eccube\Entity\Block $block
-     * @return BlockPosition
-     */
-    public function setBlock(\Eccube\Entity\Block $block)
-    {
-        $this->Block = $block;
+        /**
+         * Set blockRow.
+         *
+         * @param int|null $blockRow
+         *
+         * @return BlockPosition
+         */
+        public function setBlockRow($blockRow = null)
+        {
+            $this->block_row = $blockRow;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get Block
-     *
-     * @return \Eccube\Entity\Block 
-     */
-    public function getBlock()
-    {
-        return $this->Block;
-    }
+        /**
+         * Get blockRow.
+         *
+         * @return int|null
+         */
+        public function getBlockRow()
+        {
+            return $this->block_row;
+        }
 
-    /**
-     * Set PageLayout
-     *
-     * @param \Eccube\Entity\PageLayout $pageLayout
-     * @return BlockPosition
-     */
-    public function setPageLayout(\Eccube\Entity\PageLayout $pageLayout)
-    {
-        $this->PageLayout = $pageLayout;
+        /**
+         * Set block.
+         *
+         * @param \Eccube\Entity\Block|null $block
+         *
+         * @return BlockPosition
+         */
+        public function setBlock(\Eccube\Entity\Block $block = null)
+        {
+            $this->Block = $block;
 
-        return $this;
-    }
+            return $this;
+        }
 
-    /**
-     * Get PageLayout
-     *
-     * @return \Eccube\Entity\PageLayout 
-     */
-    public function getPageLayout()
-    {
-        return $this->PageLayout;
+        /**
+         * Get block.
+         *
+         * @return \Eccube\Entity\Block|null
+         */
+        public function getBlock()
+        {
+            return $this->Block;
+        }
+
+        /**
+         * Set layout.
+         *
+         * @param \Eccube\Entity\Layout|null $Layout
+         *
+         * @return BlockPosition
+         */
+        public function setLayout(\Eccube\Entity\Layout $Layout = null)
+        {
+            $this->Layout = $Layout;
+
+            return $this;
+        }
+
+        /**
+         * Get Layout.
+         *
+         * @return \Eccube\Entity\Layout|null
+         */
+        public function getLayout()
+        {
+            return $this->Layout;
+        }
     }
 }

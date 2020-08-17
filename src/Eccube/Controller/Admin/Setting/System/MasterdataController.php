@@ -1,51 +1,48 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Setting\System;
 
 use Doctrine\Common\Persistence\Mapping\MappingException;
-use Eccube\Application;
 use Eccube\Controller\AbstractController;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
+use Eccube\Form\Type\Admin\MasterdataEditType;
+use Eccube\Form\Type\Admin\MasterdataType;
+use Symfony\Component\Routing\Annotation\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
 
 class MasterdataController extends AbstractController
 {
-    public function index(Application $app, Request $request, $entity = null)
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/masterdata", name="admin_setting_system_masterdata")
+     * @Route("/%eccube_admin_route%/setting/system/masterdata/{entity}/edit", name="admin_setting_system_masterdata_view")
+     * @Template("@admin/Setting/System/masterdata.twig")
+     */
+    public function index(Request $request, $entity = null)
     {
-        $data = array();
+        $data = [];
 
-        $builder = $app['form.factory']->createBuilder('admin_system_masterdata');
+        $builder = $this->formFactory->createBuilder(MasterdataType::class);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_INITIALIZE, $event);
 
         $form = $builder->getForm();
 
@@ -53,69 +50,78 @@ class MasterdataController extends AbstractController
             $form->handleRequest($request);
             if ($form->isValid()) {
                 $event = new EventArgs(
-                    array(
+                    [
                         'form' => $form,
-                    ),
+                    ],
                     $request
                 );
-                $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_COMPLETE, $event);
+                $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_COMPLETE, $event);
 
                 if ($event->hasResponse()) {
                     return $event->getResponse();
                 }
 
-                return $app->redirect($app->url('admin_setting_system_masterdata_view', array('entity' => $form['masterdata']->getData())));
+                return $this->redirectToRoute(
+                    'admin_setting_system_masterdata_view', ['entity' => $form['masterdata']->getData()]
+                );
             }
         } elseif (!is_null($entity)) {
-            $form->submit(array('masterdata' => $entity));
+            $form->submit(['masterdata' => $entity]);
             if ($form['masterdata']->isValid()) {
                 $entityName = str_replace('-', '\\', $entity);
                 try {
-                    $masterdata = $app['orm.em']->getRepository($entityName)->findBy(array(), array('rank' => 'ASC'));
-                    $data['data'] = array();
+                    $masterdata = $this->entityManager->getRepository($entityName)->findBy(
+                        [],
+                        ['sort_no' => 'ASC']
+                    );
+                    $data['data'] = [];
                     $data['masterdata_name'] = $entity;
                     foreach ($masterdata as $value) {
                         $data['data'][$value['id']]['id'] = $value['id'];
                         $data['data'][$value['id']]['name'] = $value['name'];
                     }
-                    $data['data'][] = array(
+                    $data['data'][] = [
                         'id' => '',
                         'name' => '',
-                    );
+                    ];
                 } catch (MappingException $e) {
                 }
             }
         }
 
-        $builder2 = $app['form.factory']->createBuilder('admin_system_masterdata_edit', $data);
+        $builder2 = $this->formFactory->createBuilder(MasterdataEditType::class, $data);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder2,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_FORM2_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_INDEX_FORM2_INITIALIZE, $event);
 
         $form2 = $builder2->getForm();
 
-        return $app->render('Setting/System/masterdata.twig', array(
+        return [
             'form' => $form->createView(),
             'form2' => $form2->createView(),
-        ));
+        ];
     }
 
-    public function edit(Application $app, Request $request)
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/masterdata/edit", name="admin_setting_system_masterdata_edit")
+     * @Template("@admin/Setting/System/masterdata.twig")
+     */
+    public function edit(Request $request)
     {
-        $builder2 = $app['form.factory']->createBuilder('admin_system_masterdata_edit');
+        $builder2 = $this->formFactory->createBuilder(MasterdataEditType::class);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder2,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_INITIALIZE, $event);
 
         $form2 = $builder2->getForm();
 
@@ -126,62 +132,78 @@ class MasterdataController extends AbstractController
                 $data = $form2->getData();
 
                 $entityName = str_replace('-', '\\', $data['masterdata_name']);
-                $entity = new $entityName();
-                $rank = 0;
-                $ids = array_map(function ($v) {return $v['id'];}, $data['data']);
+                $sortNo = 0;
+                $ids = array_filter(array_map(
+                    function ($v) {
+                        return $v['id'];
+                    },
+                    $data['data']
+                ));
+
+                $repository = $this->entityManager->getRepository($entityName);
+
                 foreach ($data['data'] as $key => $value) {
                     if ($value['id'] !== null && $value['name'] !== null) {
+                        $entity = $repository->find($value['id']);
+                        if ($entity === null) {
+                            $entity = new $entityName();
+                        }
                         $entity->setId($value['id']);
                         $entity->setName($value['name']);
-                        $entity->setRank($rank++);
-                        $app['orm.em']->merge($entity);
+                        $entity->setSortNo($sortNo++);
+                        $this->entityManager->persist($entity);
                     } elseif (!in_array($key, $ids)) {
                         // remove
-                        $delKey = $app['orm.em']->getRepository($entityName)->find($key);
+                        $delKey = $this->entityManager->getRepository($entityName)->find($key);
                         if ($delKey) {
-                            $app['orm.em']->remove($delKey);
+                            $this->entityManager->remove($delKey);
                         }
                     }
                 }
 
                 try {
-                    $app['orm.em']->flush();
+                    $this->entityManager->flush();
 
                     $event = new EventArgs(
-                        array(
+                        [
                             'form' => $form2,
-                        ),
+                        ],
                         $request
                     );
-                    $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_COMPLETE, $event);
+                    $this->eventDispatcher->dispatch(
+                        EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_COMPLETE,
+                        $event
+                    );
 
-                    $app->addSuccess('admin.register.complete', 'admin');
+                    $this->addSuccess('admin.common.save_complete', 'admin');
                 } catch (\Exception $e) {
                     // 外部キー制約などで削除できない場合に例外エラーになる
-                    $app->addError('admin.register.failed', 'admin');
+                    $this->addError('admin.common.save_error', 'admin');
                 }
 
-                return $app->redirect($app->url('admin_setting_system_masterdata_view', array('entity' => $data['masterdata_name'])));
+                return $this->redirectToRoute(
+                    'admin_setting_system_masterdata_view', ['entity' => $data['masterdata_name']]
+                );
             }
         }
 
-        $builder = $app['form.factory']->createBuilder('admin_system_masterdata');
+        $builder = $this->formFactory->createBuilder(MasterdataType::class);
 
         $event = new EventArgs(
-            array(
+            [
                 'builder' => $builder,
-            ),
+            ],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_FORM_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::ADMIN_SETTING_SYSTEM_MASTERDATA_EDIT_FORM_INITIALIZE, $event);
 
         $form = $builder->getForm();
-        $parameter = array_merge($request->request->all(), array('masterdata' => $form2['masterdata_name']->getData()));
+        $parameter = array_merge($request->request->all(), ['masterdata' => $form2['masterdata_name']->getData()]);
         $form->submit($parameter);
 
-        return $app->render('Setting/System/masterdata.twig', array(
+        return [
             'form' => $form->createView(),
             'form2' => $form2->createView(),
-        ));
+        ];
     }
 }

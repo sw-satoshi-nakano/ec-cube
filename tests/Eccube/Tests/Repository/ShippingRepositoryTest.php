@@ -1,15 +1,33 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Repository;
 
+use Eccube\Entity\Master\OrderItemType;
+use Eccube\Entity\Master\TaxDisplayType;
+use Eccube\Entity\Master\TaxType;
+use Eccube\Entity\OrderItem;
+use Eccube\Entity\Shipping;
+use Eccube\Service\PurchaseFlow\PurchaseContext;
 use Eccube\Tests\EccubeTestCase;
-use Eccube\Application;
-use Eccube\Common\Constant;
+use Eccube\Repository\MemberRepository;
+use Eccube\Entity\Member;
 use Eccube\Entity\Customer;
 use Eccube\Entity\Order;
-use Eccube\Entity\OrderDetail;
-use Eccube\Entity\Shipping;
-use Eccube\Entity\ShipmentItem;
+use Eccube\Entity\Product;
+use Eccube\Entity\ProductClass;
+use Eccube\Repository\TaxRuleRepository;
+use Eccube\Repository\ShippingRepository;
 
 /**
  * ShippingRepository test cases.
@@ -18,75 +36,117 @@ use Eccube\Entity\ShipmentItem;
  */
 class ShippingRepositoryTest extends EccubeTestCase
 {
+    /**
+     * @var Customer
+     */
     protected $Customer;
+
+    /**
+     * @var Order
+     */
     protected $Order;
+
+    /**
+     * @var Product
+     */
     protected $Product;
+
+    /**
+     * @var ProductClass
+     */
     protected $ProductClass;
 
+    /**
+     * @var Shipping[]
+     */
+    protected $Shippings;
+
+    /**
+     * @var Member
+     */
+    protected $Member;
+
+    /**
+     * @var MemberRepository
+     */
+    protected $memberRepository;
+
+    /**
+     * @var TaxRuleRepository
+     */
+    protected $taxRuleRepository;
+
+    /**
+     * @var ShippingRepository
+     */
+    protected $shippingRepository;
+
+    /**
+     * {@inheritdoc}
+     *
+     * @throws \Doctrine\ORM\NoResultException
+     */
     public function setUp()
     {
         parent::setUp();
+
+        $this->memberRepository = $this->container->get(MemberRepository::class);
+        $this->taxRuleRepository = $this->container->get(TaxRuleRepository::class);
+        $this->shippingRepository = $this->container->get(ShippingRepository::class);
+
         $faker = $this->getFaker();
-        $this->Member = $this->app['eccube.repository.member']->find(2);
+        $this->Member = $this->memberRepository->find(2);
         $this->Customer = $this->createCustomer();
         $this->Order = $this->createOrder($this->Customer);
         $this->Product = $this->createProduct();
+        $this->Shippings = [];
         $ProductClasses = $this->Product->getProductClasses();
         $this->ProductClass = $ProductClasses[0];
         $quantity = 3;
-        $TaxRule = $this->app['eccube.repository.tax_rule']->getByRule(); // デフォルト課税規則
 
-        $OrderDetail = new OrderDetail();
-        $OrderDetail->setProduct($this->Product)
-            ->setProductClass($this->ProductClass)
-            ->setProductName($this->Product->getName())
-            ->setProductCode($this->ProductClass->getCode())
-            ->setPrice($this->ProductClass->getPrice02())
-            ->setQuantity($quantity)
-            ->setTaxRule($TaxRule->getCalcRule()->getId())
-            ->setTaxRate($TaxRule->getTaxRate());
-        $this->app['orm.em']->persist($OrderDetail);
-        $OrderDetail->setOrder($this->Order);
-        $this->Order->addOrderDetail($OrderDetail);
+        $TaxDisplayType = $this->entityManager->find(TaxDisplayType::class, TaxDisplayType::EXCLUDED);
+        $TaxType = $this->entityManager->find(TaxType::class, TaxType::TAXATION);
+        $ProductOrderItemType = $this->entityManager->find(OrderItemType::class, OrderItemType::PRODUCT);
 
         // 1個ずつ別のお届け先に届ける
         for ($i = 0; $i < $quantity; $i++) {
             $Shipping = new Shipping();
             $Shipping->copyProperties($this->Customer);
             $Shipping
+                ->setOrder($this->Order)
                 ->setName01($faker->lastName)
                 ->setName02($faker->firstName)
                 ->setKana01('セイ');
             $this->Order->addShipping($Shipping);
-            $Shipping->setOrder($this->Order);
-            $this->app['orm.em']->persist($Shipping);
+            $this->entityManager->persist($Shipping);
 
-            $ShipmentItem = new ShipmentItem();
-            $ShipmentItem->setShipping($Shipping)
+            $OrderItem = new OrderItem();
+            $OrderItem->setShipping($Shipping)
                 ->setOrder($this->Order)
                 ->setProductClass($this->ProductClass)
                 ->setProduct($this->Product)
                 ->setProductName($this->Product->getName())
                 ->setProductCode($this->ProductClass->getCode())
                 ->setPrice($this->ProductClass->getPrice02())
-                ->setQuantity(1);
-            $this->app['orm.em']->persist($ShipmentItem);
+                ->setQuantity(1)
+                ->setTaxDisplayType($TaxDisplayType)
+                ->setTaxType($TaxType)
+                ->setOrderItemType($ProductOrderItemType)
+            ;
+            $this->Order->addOrderItem($OrderItem);
+            $Shipping->addOrderItem($OrderItem);
+            $this->entityManager->persist($OrderItem);
+            $this->Shippings[$i] = $Shipping;
         }
 
-        $subTotal = 0;
-        foreach ($this->Order->getOrderDetails() as $OrderDetail) {
-            $subTotal += $OrderDetail->getPriceIncTax() * $OrderDetail->getQuantity();
-        }
-
-        $this->Order->setSubTotal($subTotal);
-        $this->Order->setTotal($subTotal);
-        $this->Order->setPaymentTotal($subTotal);
-        $this->app['orm.em']->flush();
+        $purchaseFlow = $this->container->get('eccube.purchase.flow.order');
+        $purchaseFlow->validate($this->Order, new PurchaseContext($this->Order));
+        $this->entityManager->flush();
     }
 
     public function testFindShippingsProduct()
     {
-        $Shippings = $this->app['eccube.repository.shipping']->findShippingsProduct($this->Order, $this->ProductClass);
+        $Shippings = $this->shippingRepository->findShippingsProduct($this->Order, $this->ProductClass);
 
         $this->expected = 3;
         $this->actual = count($Shippings);

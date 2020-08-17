@@ -1,16 +1,21 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Repository;
 
-use Eccube\Tests\EccubeTestCase;
-use Eccube\Application;
-use Eccube\Common\Constant;
 use Eccube\Entity\Member;
-use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
-use Symfony\Component\Security\Core\Exception\UsernameNotFoundException;
-use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\Security\Core\User\UserProviderInterface;
-use Symfony\Component\Security\Core\Util\SecureRandom;
+use Eccube\Repository\MemberRepository;
+use Eccube\Tests\EccubeTestCase;
 use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
 
 /**
@@ -20,151 +25,85 @@ use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
  */
 class MemberRepositoryTest extends EccubeTestCase
 {
-
+    /** @var Member */
     protected $Member;
+    /** @var MemberRepository */
+    protected $memberRepo;
+
+    /** @var EncoderFactoryInterface */
+    protected $encoderFactory;
+
     public function setUp()
     {
         parent::setUp();
-        $this->Member = $this->app['eccube.repository.member']->find(2);
-        $Work = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Work')
-            ->find(\Eccube\Entity\Master\Work::WORK_ACTIVE_ID);
+        $this->encoderFactory = $this->container->get('security.encoder_factory');
+        $this->memberRepo = $this->container->get(MemberRepository::class);
+        $this->Member = $this->memberRepo->find(1);
+        $Work = $this->entityManager->getRepository('Eccube\Entity\Master\Work')
+            ->find(\Eccube\Entity\Master\Work::ACTIVE);
 
         for ($i = 0; $i < 3; $i++) {
             $Member = new Member();
-            $Member
-                ->setLoginId('member-'.$i)
-                ->setPassword('password')
-                ->setSalt($this->app['eccube.repository.member']->createSalt(5))
-                ->setRank($i)
-                ->setWork($Work)
-                ->setDelFlg(Constant::DISABLED);
-            $Member->setPassword($this->app['eccube.repository.member']->encryptPassword($Member));
-            $this->app['orm.em']->persist($Member);
-        }
-        $this->app['orm.em']->flush();
-    }
-
-    public function testLoadUserByUsername()
-    {
-        $this->actual = $this->Member;
-        $this->expected = $this->app['eccube.repository.member']->loadUserByUsername('admin');
-        $this->verify();
-    }
-
-    public function testLoadUserByUsernameWithException()
-    {
-        $username = 'aaaaa';
-        try {
-            $Member = $this->app['eccube.repository.member']->loadUserByUsername($username);
-            $this->fail();
-        } catch (UsernameNotFoundException $e) {
-            $this->expected = sprintf('Username "%s" does not exist.', $username);
-            $this->actual = $e->getMessage();
-        }
-        $this->verify();
-    }
-
-    /**
-     * loadUserByUsername内のgetNullOrSingleResultが正しい値を返却するかを確認する
-     * ※getNullOrSingleResultは「NonUniqueResultException」をスローするが >
-     * > 同一IDのデーターを投入→取得した際にエラーがでないか確認を行う
-     * 投入データーは、同一レコード2件
-     * 2件のデータを投入しょうとしているが、本ケースでは、LoginIdがプライマリーキーのために >
-     * > 重複データーは作成されない
-     * 重複データーが作成されなければ、getNullOrSingleResultは「NonUniqueResultException」を >
-     * > スローしないため、重複データーが登録されない事、同一プライマリーをflushしてもエラーが >
-     * > 発生しない事を確認
-     * 結果としては、一件のレコードをかえされる事を期待
-     *
-     */
-    public function testLoadUserByUsernameSetSameRecord()
-    {
-        $this->Member = $this->app['eccube.repository.member']->find(2);
-        $Work = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Work')
-            ->find(\Eccube\Entity\Master\Work::WORK_ACTIVE_ID);
-
-        for ($i = 0; $i < 3; $i++) {
-            $Member = new Member();
+            $salt = bin2hex(openssl_random_pseudo_bytes(5));
+            $password = 'password';
+            $encoder = $this->encoderFactory->getEncoder($Member);
             $Member
                 ->setLoginId('member-1')
-                ->setPassword('password')
-                ->setSalt($this->app['eccube.repository.member']->createSalt(5))
-                ->setRank($i)
-                ->setWork($Work)
-                ->setDelFlg(Constant::DISABLED);
-            $Member->setPassword($this->app['eccube.repository.member']->encryptPassword($Member));
-            $this->app['orm.em']->persist($Member);
+                ->setPassword($encoder->encodePassword($password, $salt))
+                ->setSalt($salt)
+                ->setSortNo($i)
+                ->setWork($Work);
+            $this->entityManager->persist($Member);
+            $this->memberRepo->save($Member);
         }
-        $this->app['orm.em']->flush();
-
-        $this->actual = 1;
-
-        $this->expected = count($this->app['eccube.repository.member']->loadUserByUsername('admin'));
-        $this->verify();
-    }
-
-    public function testRefreshUser()
-    {
-        $this->expected = $this->Member;
-        $this->actual = $this->app['eccube.repository.member']->refreshUser($this->Member);
-        $this->verify();
-    }
-
-    public function testRefreshUserWithException()
-    {
-        try {
-            $Member = $this->app['eccube.repository.member']->refreshUser(new DummyMember());
-            $this->fail();
-        } catch (UnsupportedUserException $e) {
-            $this->expected = 'Instances of "Eccube\Tests\Repository\DummyMember" are not supported.';
-            $this->actual = $e->getMessage();
-        }
-        $this->verify();
-    }
-
-    public function testSupportedClass()
-    {
-        $this->assertTrue($this->app['eccube.repository.member']->supportsClass(get_class($this->Member)));
     }
 
     public function testUp()
     {
-        $rank = $this->Member->getRank();
-        $result = $this->app['eccube.repository.member']->up($this->Member);
-        $this->assertTrue($result);
+        $sortNo = $this->Member->getSortNo();
+        $this->memberRepo->up($this->Member);
 
-        $this->expected = $rank + 1;
-        $this->actual = $this->Member->getRank();
+        $this->expected = $sortNo + 1;
+        $this->actual = $this->Member->getSortNo();
         $this->verify();
     }
 
     public function testUpWithException()
     {
-        $this->Member->setRank(999);
-        $this->app['orm.em']->flush();
+        $this->expectException(\Exception::class);
+        $this->Member->setSortNo(999);
+        $this->entityManager->flush();
 
-        $result = $this->app['eccube.repository.member']->up($this->Member);
-        $this->assertFalse($result);
+        $this->memberRepo->up($this->Member);
     }
 
     public function testDown()
     {
-        $rank = $this->Member->getRank();
-        $result = $this->app['eccube.repository.member']->down($this->Member);
-        $this->assertTrue($result);
+        $qb = $this->entityManager->createQueryBuilder();
+        $max = $qb->select('MAX(m.sort_no)')
+            ->from(Member::class, 'm')
+            ->getQuery()
+            ->getSingleScalarResult();
 
-        $this->expected = $rank - 1;
-        $this->actual = $this->Member->getRank();
+        $this->Member->setSortNo($max + 1);
+        $this->entityManager->flush();
+
+        $sortNo = $this->Member->getSortNo();
+        $this->memberRepo->down($this->Member);
+
+        $this->expected = $sortNo - 1;
+        $this->actual = $this->Member->getSortNo();
         $this->verify();
     }
 
     public function testDownWithException()
     {
-        $this->Member->setRank(0);
-        $this->app['orm.em']->flush();
+        $this->expectException(\Exception::class);
+        $this->Member->setSortNo(0);
+        $this->entityManager->flush();
 
-        $result = $this->app['eccube.repository.member']->down($this->Member);
-        $this->assertFalse($result);
+        $this->memberRepo->down($this->Member);
+        $this->fail();
     }
 
     public function testSave()
@@ -173,105 +112,64 @@ class MemberRepositoryTest extends EccubeTestCase
         $Member
             ->setLoginId('member-100')
             ->setPassword('password')
-            ->setSalt($this->app['eccube.repository.member']->createSalt(5))
-            ->setRank(100)
-            ->setDelFlg(Constant::DISABLED);
-        $Member->setPassword($this->app['eccube.repository.member']->encryptPassword($Member));
-        $result = $this->app['eccube.repository.member']->save($Member);
-        $this->assertTrue($result);
+            ->setSalt('salt')
+            ->setSortNo(100);
+
+        $this->memberRepo->save($Member);
+
+        // verify
+        $member = $this->memberRepo->findOneBy(['login_id' => 'member-100']);
+        $this->actual = $member->getPassword();
+        $this->expected = $Member->getPassword();
+        $this->verify();
     }
 
-    public function testSaveWithRankNull()
+    public function testSaveWithSortNoNull()
     {
-        $Members = $this->app['eccube.repository.member']->findAll();
-        foreach ($Members as $Member) {
-            $this->app['orm.em']->remove($Member);
-        }
-        $this->app['orm.em']->flush();
+        $qb = $this->entityManager->createQueryBuilder();
+        $sortNo = $qb->select('MAX(m.sort_no)')
+            ->from(Member::class, 'm')
+            ->getQuery()
+            ->getSingleScalarResult();
 
         $Member = new Member();
         $Member
             ->setLoginId('member-100')
             ->setPassword('password')
-            ->setSalt($this->app['eccube.repository.member']->createSalt(5))
-            ->setRank(100)
-            ->setDelFlg(Constant::DISABLED);
-        $Member->setPassword($this->app['eccube.repository.member']->encryptPassword($Member));
-        $result = $this->app['eccube.repository.member']->save($Member);
-        $this->assertTrue($result);
+            ->setSalt('salt')
+            ->setSortNo(100);
+        $this->memberRepo->save($Member);
 
-        $this->expected = 1;
-        $this->actual = $Member->getRank();
+        $this->expected = $sortNo + 1;
+        $this->actual = $Member->getSortNo();
+
         $this->verify();
-    }
-
-
-    public function testSaveWithException()
-    {
-        $Member = new Member(); // 空のインスタンスなので例外になる
-        $result = $this->app['eccube.repository.member']->save($Member);
-        $this->assertFalse($result);
     }
 
     public function testDelete()
     {
-        $result = $this->app['eccube.repository.member']->delete($this->Member);
-        $this->assertTrue($result);
+        $Member = $this->createMember();
+        $id = $Member->getId();
+        $this->memberRepo->delete($Member);
 
-        $this->expected = 1;
-        $this->actual = $this->Member->getDelFlg();
-        $this->verify();
+        $Member = $this->memberRepo->find($id);
+        $this->assertNull($Member);
     }
 
     public function testDeleteWithException()
     {
-        $Member = new Member(); // 空のインスタンスなので例外になる
-        $result = $this->app['eccube.repository.member']->delete($Member);
-        $this->assertFalse($result);
-    }
+        if ($this->entityManager->getConnection()->getDatabasePlatform()->getName() == 'sqlite') {
+            $this->markTestSkipped('Can not support for sqlite3');
+        }
 
-    public function testCreateSalt()
-    {
-        $result = $this->app['eccube.repository.member']->createSalt(5);
+        $this->expectException(\Exception::class);
+        $Member1 = $this->createMember();
+        $Member2 = $this->createMember();
+        $Member2->setCreator($Member1);
+        $this->entityManager->flush();
 
-        $this->expected = 5;
-        $this->actual = strlen(pack('H*', ($result))); // PHP5.4以降なら hex2bin が使える
-        $this->verify();
-    }
-
-    public function testEncryptPassword()
-    {
-        $Members = $this->app['eccube.repository.member']->findAll();
-        $Member = $this->app['eccube.repository.member']->loadUserByUsername('member-2');
-        $this->expected = $Member->getPassword();
-        $Member->setPassword('password');
-
-        $this->actual = $this->app['eccube.repository.member']->encryptPassword($Member);
-        $this->verify();
-    }
-}
-
-class DummyMember implements UserInterface
-{
-    public function getRoles()
-    {
-        return array('ROLE_USER');
-    }
-
-    public function getPassword()
-    {
-        return 'password';
-    }
-    public function getSalt()
-    {
-        return 'salt';
-    }
-    public function getUsername()
-    {
-        return 'user';
-    }
-    public function eraseCredentials()
-    {
-        return;
+        // 参照制約で例外となる
+        $this->memberRepo->delete($Member1);
+        $this->fail();
     }
 }

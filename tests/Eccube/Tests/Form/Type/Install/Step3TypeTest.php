@@ -1,39 +1,32 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite $this->app['config']['id_min_len']-130, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Form\Type\Install;
 
+use Eccube\Form\Type\Install\Step3Type;
+use Eccube\Tests\Form\Type\AbstractTypeTestCase;
+
 class Step3TypeTest extends AbstractTypeTestCase
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
-    /** @var \Symfony\Component\Form\FormInterface */
+    /**
+     * @var \Symfony\Component\Form\FormInterface
+     */
     protected $form;
 
-    /** @var array デフォルト値（正常系）を設定 */
-    protected $formData = array(
+    /**
+     * @var array デフォルト値（正常系）を設定
+     */
+    protected $formData = [
         'shop_name' => '店舗名',
         'email' => 'eccube@example.com',
         'login_id' => 'administrator',
@@ -41,31 +34,30 @@ class Step3TypeTest extends AbstractTypeTestCase
         'admin_dir' => 'administrator',
         'admin_force_ssl' => true,
         'admin_allow_hosts' => '1.1.1.1',
-        'mail_backend' => 'mail',
         'smtp_host' => '',
         'smtp_port' => '',
         'smtp_username' => '',
         'smtp_password' => '',
-    );
+    ];
 
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
         parent::setUp();
 
         // CSRF tokenを無効にしてFormを作成
-        $this->form = $this->app['form.factory']
-            ->createBuilder('install_step3', null, array(
-                'csrf_protection' => false,
-            ))
+        $this->form = $this->formFactory
+            ->createBuilder(Step3Type::class, null, ['csrf_protection' => false])
             ->getForm();
     }
 
     public function testValidData()
     {
         $this->form->submit($this->formData);
-        $this->assertTrue($this->form->isValid());
-
-        $this->assertEquals('', $this->form->getErrorsAsString());
+        $this->form->isValid();
+        $this->assertEquals('', (string) $this->form->getErrors(true, false));
     }
 
     public function testInvalid_ShopName_Blank()
@@ -94,7 +86,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginId_Min()
     {
-        $this->formData['login_id'] = str_repeat('a', $this->app['config']['id_min_len']-1);
+        $this->formData['login_id'] = str_repeat('a', $this->eccubeConfig['eccube_id_min_len'] - 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -102,7 +94,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginId_Max()
     {
-        $this->formData['login_id'] = str_repeat('a', $this->app['config']['id_max_len']+1);
+        $this->formData['login_id'] = str_repeat('a', $this->eccubeConfig['eccube_id_max_len'] + 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -110,7 +102,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testValid_LoginId_Min()
     {
-        $this->formData['login_id'] = str_repeat('a', $this->app['config']['id_min_len']);
+        $this->formData['login_id'] = str_repeat('a', $this->eccubeConfig['eccube_id_min_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -118,7 +110,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testValid_LoginId_Max()
     {
-        $this->formData['login_id'] = str_repeat('a', $this->app['config']['id_max_len']);
+        $this->formData['login_id'] = str_repeat('a', $this->eccubeConfig['eccube_id_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -126,7 +118,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginId_Hiragana()
     {
-        $this->formData['login_id'] = str_repeat('あ', $this->app['config']['id_max_len']);
+        $this->formData['login_id'] = str_repeat('あ', $this->eccubeConfig['eccube_id_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -142,7 +134,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginPass_Min()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_min_len']-1);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_min_len'] - 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -150,7 +142,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginPass_Max()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_max_len']+1);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_max_len'] + 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -158,7 +150,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testVallid_LoginPass_Min()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_min_len']);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_min_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -166,7 +158,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testVallid_LoginPass_Max()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_max_len']);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -174,7 +166,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_LoginPass_Hiragana()
     {
-        $this->formData['login_pass'] = str_repeat('あ', $this->app['config']['password_max_len']);
+        $this->formData['login_pass'] = str_repeat('あ', $this->eccubeConfig['eccube_password_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -190,7 +182,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_AdminDir_Min()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['id_min_len']-1);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_id_min_len'] - 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -198,7 +190,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_AdminDir_Max()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['id_max_len']+1);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_id_max_len'] + 1);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -206,7 +198,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testVallid_AdminDir_Min()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_min_len']);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_min_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -214,7 +206,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testVallid_AdminDir_Max()
     {
-        $this->formData['login_pass'] = str_repeat('a', $this->app['config']['password_max_len']);
+        $this->formData['login_pass'] = str_repeat('a', $this->eccubeConfig['eccube_password_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
@@ -222,7 +214,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalid_AdminDir_Hiragana()
     {
-        $this->formData['admin_dir'] = str_repeat('あ', $this->app['config']['id_max_len']);
+        $this->formData['admin_dir'] = str_repeat('あ', $this->eccubeConfig['eccube_id_max_len']);
 
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
@@ -246,7 +238,7 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testValidAdminAllowHost_OneLineIp()
     {
-        $this->formData['admin_allow_hosts'] = "127.0.0.1";
+        $this->formData['admin_allow_hosts'] = '127.0.0.1';
         $this->form->submit($this->formData);
         $this->assertTrue($this->form->isValid());
     }
@@ -260,16 +252,15 @@ class Step3TypeTest extends AbstractTypeTestCase
 
     public function testInvalidAdminAllowHost_NotIp()
     {
-        $this->formData['admin_allow_hosts'] = "255.255.255,256";
+        $this->formData['admin_allow_hosts'] = '255.255.255,256';
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
 
-    public function testValid_MailBackend_Blank()
+    public function testInValid_AdminDir()
     {
-        $this->formData['mail_backend'] = '';
-
+        $this->formData['admin_dir'] = 'admin';
         $this->form->submit($this->formData);
-        $this->assertTrue($this->form->isValid());
+        $this->assertFalse($this->form->isValid());
     }
 }

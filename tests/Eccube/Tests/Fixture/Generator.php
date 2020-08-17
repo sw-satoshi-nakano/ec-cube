@@ -1,19 +1,33 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Fixture;
 
-use Eccube\Common\Constant;
+use bheller\ImagesGenerator\ImagesGeneratorProvider;
+use Doctrine\ORM\EntityManagerInterface;
 use Eccube\Entity\Customer;
 use Eccube\Entity\CustomerAddress;
 use Eccube\Entity\Delivery;
 use Eccube\Entity\DeliveryFee;
 use Eccube\Entity\DeliveryTime;
 use Eccube\Entity\Master\CustomerStatus;
-use Eccube\Entity\Master\DeviceType;
+use Eccube\Entity\Master\OrderItemType;
+use Eccube\Entity\Master\TaxDisplayType;
+use Eccube\Entity\Master\TaxType;
 use Eccube\Entity\Member;
 use Eccube\Entity\Order;
-use Eccube\Entity\OrderDetail;
-use Eccube\Entity\PageLayout;
+use Eccube\Entity\OrderItem;
+use Eccube\Entity\Page;
 use Eccube\Entity\Payment;
 use Eccube\Entity\PaymentOption;
 use Eccube\Entity\Product;
@@ -21,27 +35,145 @@ use Eccube\Entity\ProductCategory;
 use Eccube\Entity\ProductClass;
 use Eccube\Entity\ProductImage;
 use Eccube\Entity\ProductStock;
-use Eccube\Entity\ShipmentItem;
 use Eccube\Entity\Shipping;
+use Eccube\Repository\CategoryRepository;
+use Eccube\Repository\ClassCategoryRepository;
+use Eccube\Repository\ClassNameRepository;
+use Eccube\Repository\CustomerRepository;
+use Eccube\Repository\DeliveryDurationRepository;
+use Eccube\Repository\DeliveryFeeRepository;
+use Eccube\Repository\Master\PrefRepository;
+use Eccube\Repository\MemberRepository;
+use Eccube\Repository\PageRepository;
+use Eccube\Repository\PaymentRepository;
+use Eccube\Repository\TaxRuleRepository;
+use Eccube\Security\Core\Encoder\PasswordEncoder;
+use Eccube\Service\PurchaseFlow\PurchaseContext;
+use Eccube\Service\PurchaseFlow\PurchaseFlow;
+use Eccube\Util\StringUtil;
 use Faker\Factory as Faker;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 /**
  * Fixture Object Generator.
  *
  * @author Kentaro Ohkouchi
  */
-class Generator {
+class Generator
+{
+    protected $locale;
 
-    protected $app;
+    /**
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
 
-    public function __construct($app) {
-        $this->app = $app;
+    /**
+     * @var PasswordEncoder
+     */
+    protected $passwordEncoder;
+
+    /**
+     * @var MemberRepository
+     */
+    protected $memberRepository;
+
+    /**
+     * @var CustomerRepository
+     */
+    protected $customerRepository;
+
+    /**
+     * @var ClassNameRepository
+     */
+    protected $classNameRepository;
+
+    /**
+     * @var ClassCategoryRepository
+     */
+    protected $classCategoryRepository;
+
+    /**
+     * @var DeliveryDurationRepository
+     */
+    protected $durationRepository;
+
+    /**
+     * @var DeliveryFeeRepository
+     */
+    protected $deliveryFeeRepository;
+
+    /**
+     * @var PaymentRepository;
+     */
+    protected $paymentRepository;
+
+    /**
+     * @var TaxRuleRepository
+     */
+    protected $taxRuleRepository;
+
+    /**
+     * @var PageRepository
+     */
+    protected $pageRepository;
+
+    /**
+     * @var PrefRepository
+     */
+    protected $PrefRepository;
+
+    /**
+     * @var SessionInterface
+     */
+    protected $session;
+
+    /**
+     * @var PurchaseFlow
+     */
+    protected $orderPurchaseFlow;
+
+    public function __construct(
+        EntityManagerInterface $entityManager,
+        PasswordEncoder $passwordEncoder,
+        MemberRepository $memberRepository,
+        CategoryRepository $categoryRepository,
+        CustomerRepository $customerRepository,
+        ClassNameRepository $classNameRepository,
+        ClassCategoryRepository $classCategoryRepository,
+        DeliveryDurationRepository $durationRepository,
+        DeliveryFeeRepository $deliveryFeeRepository,
+        PaymentRepository $paymentRepository,
+        PageRepository $pageRepository,
+        PrefRepository $prefRepository,
+        TaxRuleRepository $taxRuleRepository,
+        PurchaseFlow $orderPurchaseFlow,
+        SessionInterface $session,
+        $locale = 'ja_JP'
+    ) {
+        $this->locale = $locale;
+        $this->entityManager = $entityManager;
+        $this->passwordEncoder = $passwordEncoder;
+        $this->memberRepository = $memberRepository;
+        $this->categoryRepository = $categoryRepository;
+        $this->customerRepository = $customerRepository;
+        $this->classNameRepository = $classNameRepository;
+        $this->classCategoryRepository = $classCategoryRepository;
+        $this->durationRepository = $durationRepository;
+        $this->deliveryFeeRepository = $deliveryFeeRepository;
+        $this->paymentRepository = $paymentRepository;
+        $this->pageRepository = $pageRepository;
+        $this->prefRepository = $prefRepository;
+        $this->taxRuleRepository = $taxRuleRepository;
+        $this->orderPurchaseFlow = $orderPurchaseFlow;
+        $this->session = $session;
     }
 
     /**
      * Member オブジェクトを生成して返す.
      *
-     * @param string $username. null の場合は, ランダムなユーザーIDが生成される.
+     * @param string $username . null の場合は, ランダムなユーザーIDが生成される.
+     *
      * @return \Eccube\Entity\Member
      */
     public function createMember($username = null)
@@ -51,22 +183,24 @@ class Generator {
         if (is_null($username)) {
             $username = $faker->word;
         }
-        $Work = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Work')->find(1);
-        $Authority = $this->app['eccube.repository.master.authority']->find(0);
-        $Creator = $this->app['eccube.repository.member']->find(2);
-        $salt = $this->app['eccube.repository.member']->createSalt(5);
+        $Work = $this->entityManager->find(\Eccube\Entity\Master\Work::class, 1);
+        $Authority = $this->entityManager->find(\Eccube\Entity\Master\Authority::class, 0);
+        $Creator = $this->entityManager->find(\Eccube\Entity\Member::class, 2);
+
+        $salt = bin2hex(openssl_random_pseudo_bytes(5));
+        $password = 'password';
+        $password = $this->passwordEncoder->encodePassword($password, $salt);
 
         $Member
-            ->setPassword('password')
             ->setLoginId($username)
             ->setName($username)
             ->setSalt($salt)
+            ->setPassword($password)
             ->setWork($Work)
             ->setAuthority($Authority)
             ->setCreator($Creator);
-        $password = $this->app['eccube.repository.member']->encryptPassword($Member);
-        $Member->setPassword($password);
-        $this->app['eccube.repository.member']->save($Member);
+        $this->memberRepository->save($Member);
+
         return $Member;
     }
 
@@ -74,58 +208,51 @@ class Generator {
      * Customer オブジェクトを生成して返す.
      *
      * @param string $email メールアドレス. null の場合は, ランダムなメールアドレスが生成される.
+     *
      * @return \Eccube\Entity\Customer
      */
     public function createCustomer($email = null)
     {
+        /** @var Generator_Faker $faker */
         $faker = $this->getFaker();
         $Customer = new Customer();
         if (is_null($email)) {
             $email = $faker->safeEmail;
         }
-        $tel = explode('-', $faker->phoneNumber);
-        $fax = explode('-', $faker->phoneNumber);
-        $Status = $this->app['orm.em']->getRepository('Eccube\Entity\Master\CustomerStatus')->find(CustomerStatus::ACTIVE);
-        $Pref = $this->app['eccube.repository.master.pref']->find($faker->numberBetween(1, 47));
-        $Sex = $this->app['eccube.repository.master.sex']->find($faker->numberBetween(1, 2));
-        $Job = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Job')->find($faker->numberBetween(1, 18));
+        $phoneNumber = str_replace('-', '', $faker->phoneNumber);
+        $Status = $this->entityManager->find(\Eccube\Entity\Master\CustomerStatus::class, CustomerStatus::ACTIVE);
+        $Pref = $this->entityManager->find(\Eccube\Entity\Master\Pref::class, $faker->numberBetween(1, 47));
+        $Sex = $this->entityManager->find(\Eccube\Entity\Master\Sex::class, $faker->numberBetween(1, 2));
+        $Job = $this->entityManager->find(\Eccube\Entity\Master\Job::class, $faker->numberBetween(1, 18));
+
+        $salt = $this->passwordEncoder->createSalt();
+        $password = $this->passwordEncoder->encodePassword('password', $salt);
         $Customer
             ->setName01($faker->lastName)
             ->setName02($faker->firstName)
-            ->setKana01($faker->lastKanaName)
-            ->setKana02($faker->firstKanaName)
+            ->setKana01($this->locale === 'ja_JP' ? $faker->lastKanaName : '')
+            ->setKana02($this->locale === 'ja_JP' ? $faker->firstKanaName : '')
             ->setCompanyName($faker->company)
             ->setEmail($email)
-            ->setZip01($faker->postcode1())
-            ->setZip02($faker->postcode2())
+            ->setPostalcode($faker->postcode)
             ->setPref($Pref)
             ->setAddr01($faker->city)
             ->setAddr02($faker->streetAddress)
-            ->setTel01($tel[0])
-            ->setTel02($tel[1])
-            ->setTel03($tel[2])
-            ->setFax01($fax[0])
-            ->setFax02($fax[1])
-            ->setFax03($fax[2])
+            ->setPhoneNumber($phoneNumber)
             ->setBirth($faker->dateTimeThisDecade())
             ->setSex($Sex)
             ->setJob($Job)
-            ->setPassword('password')
-            ->setSalt($this->app['eccube.repository.customer']->createSalt(5))
-            ->setSecretKey($this->app['eccube.repository.customer']->getUniqueSecretKey($this->app))
+            ->setPassword($password)
+            ->setSalt($salt)
+            ->setSecretKey($this->customerRepository->getUniqueSecretKey())
             ->setStatus($Status)
-            ->setDelFlg(Constant::DISABLED);
-        $Customer->setPassword($this->app['eccube.repository.customer']->encryptPassword($this->app, $Customer));
-        $this->app['orm.em']->persist($Customer);
-        $this->app['orm.em']->flush($Customer);
+            ->setCreateDate(new \DateTime()) // FIXME
+            ->setUpdateDate(new \DateTime())
+            ->setPoint($faker->randomNumber(5));
+        $this->entityManager->persist($Customer);
+        $this->entityManager->flush($Customer);
 
-        $CustomerAddress = new CustomerAddress();
-        $CustomerAddress
-            ->setCustomer($Customer)
-            ->setDelFlg(Constant::DISABLED);
-        $CustomerAddress->copyProperties($Customer);
-        $this->app['orm.em']->persist($CustomerAddress);
-        $this->app['orm.em']->flush($CustomerAddress);
+        $this->entityManager->flush($Customer);
 
         return $Customer;
     }
@@ -135,47 +262,40 @@ class Generator {
      *
      * @param Customer $Customer 対象の Customer インスタンス
      * @param boolean $is_nonmember 非会員の場合 true
+     *
      * @return CustomerAddress
      */
     public function createCustomerAddress(Customer $Customer, $is_nonmember = false)
     {
         $faker = $this->getFaker();
-        $Pref = $this->app['eccube.repository.master.pref']->find($faker->numberBetween(1, 47));
-        $tel = explode('-', $faker->phoneNumber);
-        $fax = explode('-', $faker->phoneNumber);
+        $Pref = $this->entityManager->find(\Eccube\Entity\Master\Pref::class, $faker->numberBetween(1, 47));
+        $phoneNumber = str_replace('-', '', $faker->phoneNumber);
         $CustomerAddress = new CustomerAddress();
         $CustomerAddress
             ->setCustomer($Customer)
-            ->setDelFlg(Constant::DISABLED)
             ->setName01($faker->lastName)
             ->setName02($faker->firstName)
-            ->setKana01($faker->lastKanaName)
-            ->setKana02($faker->firstKanaName)
+            ->setKana01($this->locale === 'ja_JP' ? $faker->lastKanaName : '')
+            ->setKana02($this->locale === 'ja_JP' ? $faker->firstKanaName : '')
             ->setCompanyName($faker->company)
-            ->setZip01($faker->postcode1())
-            ->setZip02($faker->postcode2())
+            ->setPostalCode($faker->postcode)
             ->setPref($Pref)
             ->setAddr01($faker->city)
             ->setAddr02($faker->streetAddress)
-            ->setTel01($tel[0])
-            ->setTel02($tel[1])
-            ->setTel03($tel[2])
-            ->setFax01($fax[0])
-            ->setFax02($fax[1])
-            ->setFax03($fax[2]);
+            ->setPhoneNumber($phoneNumber);
         if ($is_nonmember) {
             $Customer->addCustomerAddress($CustomerAddress);
             // TODO 外部でやった方がいい？
             $sessionCustomerAddressKey = 'eccube.front.shopping.nonmember.customeraddress';
-            $customerAddresses = unserialize($this->app['session']->get($sessionCustomerAddressKey));
+            $customerAddresses = unserialize($this->session->get($sessionCustomerAddressKey));
             if (!is_array($customerAddresses)) {
-                $customerAddresses = array();
+                $customerAddresses = [];
             }
             $customerAddresses[] = $CustomerAddress;
-            $this->app['session']->set($sessionCustomerAddressKey, serialize($customerAddresses));
+            $this->session->set($sessionCustomerAddressKey, serialize($customerAddresses));
         } else {
-            $this->app['orm.em']->persist($CustomerAddress);
-            $this->app['orm.em']->flush($CustomerAddress);
+            $this->entityManager->persist($CustomerAddress);
+            $this->entityManager->flush($CustomerAddress);
         }
 
         return $CustomerAddress;
@@ -185,6 +305,7 @@ class Generator {
      * 非会員の Customer オブジェクトを生成して返す.
      *
      * @param string $email メールアドレス. null の場合は, ランダムなメールアドレスが生成される.
+     *
      * @return \Eccube\Entity\Customer
      */
     public function createNonMember($email = null)
@@ -196,44 +317,29 @@ class Generator {
         if (is_null($email)) {
             $email = $faker->safeEmail;
         }
-        $Pref = $this->app['eccube.repository.master.pref']->find($faker->numberBetween(1, 47));
-        $tel = explode('-', $faker->phoneNumber);
-        $fax = explode('-', $faker->phoneNumber);
+        $Pref = $this->entityManager->find(\Eccube\Entity\Master\Pref::class, $faker->numberBetween(1, 47));
+        $phoneNumber = str_replace('-', '', $faker->phoneNumber);
         $Customer
             ->setName01($faker->lastName)
             ->setName02($faker->firstName)
-            ->setKana01($faker->lastKanaName)
-            ->setKana02($faker->firstKanaName)
+            ->setKana01($this->locale === 'ja_JP' ? $faker->lastKanaName : '')
+            ->setKana02($this->locale === 'ja_JP' ? $faker->firstKanaName : '')
             ->setCompanyName($faker->company)
             ->setEmail($email)
-            ->setZip01($faker->postcode1())
-            ->setZip02($faker->postcode2())
+            ->setPostalCode($faker->postcode)
             ->setPref($Pref)
             ->setAddr01($faker->city)
             ->setAddr02($faker->streetAddress)
-            ->setTel01($tel[0])
-            ->setTel02($tel[1])
-            ->setTel03($tel[2])
-            ->setFax01($fax[0])
-            ->setFax02($fax[1])
-            ->setFax03($fax[2])
-            ->setDelFlg(Constant::DISABLED);
+            ->setPhoneNumber($phoneNumber);
 
-        $CustomerAddress = new CustomerAddress();
-        $CustomerAddress
-            ->setCustomer($Customer)
-            ->setDelFlg(Constant::DISABLED);
-        $CustomerAddress->copyProperties($Customer);
-        $Customer->addCustomerAddress($CustomerAddress);
-
-        $nonMember = array();
+        $nonMember = [];
         $nonMember['customer'] = $Customer;
         $nonMember['pref'] = $Customer->getPref()->getId();
-        $this->app['session']->set($sessionKey, $nonMember);
+        $this->session->set($sessionKey, $nonMember);
 
-        $customerAddresses = array();
-        $customerAddresses[] = $CustomerAddress;
-        $this->app['session']->set($sessionCustomerAddressKey, serialize($customerAddresses));
+        $customerAddresses = [];
+        $this->session->set($sessionCustomerAddressKey, serialize($customerAddresses));
+
         return $Customer;
     }
 
@@ -247,72 +353,81 @@ class Generator {
      * @param string $image_type 生成する画像タイプ.
      *        abstract, animals, business, cats, city, food, night, life, fashion, people, nature, sports, technics, transport から選択可能
      *        null の場合は、画像を生成せずにファイル名のみを設定する.
+     *
      * @return \Eccube\Entity\Product
      */
     public function createProduct($product_name = null, $product_class_num = 3, $image_type = null)
     {
         $faker = $this->getFaker();
-        $Member = $this->app['eccube.repository.member']->find(2);
-        $Disp = $this->app['eccube.repository.master.disp']->find(\Eccube\Entity\Master\Disp::DISPLAY_SHOW);
-        $ProductType = $this->app['eccube.repository.master.product_type']->find(1);
-        $DeliveryDates = $this->app['eccube.repository.delivery_date']->findAll();
+        $Member = $this->entityManager->find(\Eccube\Entity\Member::class, 2);
+        $ProductStatus = $this->entityManager->find(\Eccube\Entity\Master\ProductStatus::class, \Eccube\Entity\Master\ProductStatus::DISPLAY_SHOW);
+        $SaleType = $this->entityManager->find(\Eccube\Entity\Master\SaleType::class, 1);
+        $DeliveryDurations = $this->durationRepository->findAll();
+
         $Product = new Product();
         if (is_null($product_name)) {
-            $product_name = $faker->word;
+            $product_name = $faker->realText($faker->numberBetween(10, 50));
         }
-
         $Product
             ->setName($product_name)
             ->setCreator($Member)
-            ->setStatus($Disp)
-            ->setDelFlg(Constant::DISABLED)
+            ->setStatus($ProductStatus)
+            ->setCreateDate(new \DateTime()) // FIXME
+            ->setUpdateDate(new \DateTime())
             ->setDescriptionList($faker->paragraph())
-            ->setDescriptionDetail($faker->text());
+            ->setDescriptionDetail($faker->realText());
+        $Product->extendedParameter = 'aaaa';
 
-        $this->app['orm.em']->persist($Product);
-        $this->app['orm.em']->flush($Product);
+        $this->entityManager->persist($Product);
+        $this->entityManager->flush($Product);
 
+        $faker2 = Faker::create($this->locale);
+        $faker2->addProvider(new ImagesGeneratorProvider($faker2));
         for ($i = 0; $i < 3; $i++) {
             $ProductImage = new ProductImage();
             if ($image_type) {
-                $image = $faker->image(
+                $image = $faker2->imageGenerator(
                     __DIR__.'/../../../../html/upload/save_image',
                     $faker->numberBetween(480, 640),
                     $faker->numberBetween(480, 640),
-                    $image_type, false);
+                    'png', false, true, '#cccccc', '#ffffff'
+                );
             } else {
                 $image = $faker->word.'.jpg';
             }
             $ProductImage
                 ->setCreator($Member)
                 ->setFileName($image)
-                ->setRank($i)
+                ->setSortNo($i)
+                ->setCreateDate(new \DateTime()) // FIXME
                 ->setProduct($Product);
-            $this->app['orm.em']->persist($ProductImage);
-            $this->app['orm.em']->flush($ProductImage);
+            $this->entityManager->persist($ProductImage);
+            $this->entityManager->flush($ProductImage);
             $Product->addProductImage($ProductImage);
         }
 
-        $ClassNames = $this->app['eccube.repository.class_name']->findAll();
+        $ClassNames = $this->classNameRepository->findAll();
         $ClassName1 = $ClassNames[$faker->numberBetween(0, count($ClassNames) - 1)];
         $ClassName2 = $ClassNames[$faker->numberBetween(0, count($ClassNames) - 1)];
         // 同じ ClassName が選択された場合は ClassName1 のみ
         if ($ClassName1->getId() === $ClassName2->getId()) {
             $ClassName2 = null;
         }
-        $ClassCategories1 = $this->app['eccube.repository.class_category']->findBy(array('ClassName' => $ClassName1));
-        $ClassCategories2 = array();
+        $ClassCategories1 = $this->classCategoryRepository->findBy(['ClassName' => $ClassName1]);
+        $ClassCategories2 = [];
         if (is_object($ClassName2)) {
-            $ClassCategories2 = $this->app['eccube.repository.class_category']->findBy(array('ClassName' => $ClassName2));
+            $ClassCategories2 = $this->classCategoryRepository->findBy(['ClassName' => $ClassName2]);
         }
 
         for ($i = 0; $i < $product_class_num; $i++) {
             $ProductStock = new ProductStock();
             $ProductStock
+                ->setCreateDate(new \DateTime()) // FIXME
+                ->setUpdateDate(new \DateTime())
                 ->setCreator($Member)
-                ->setStock($faker->randomNumber(3));
-            $this->app['orm.em']->persist($ProductStock);
-            $this->app['orm.em']->flush($ProductStock);
+                ->setStock($faker->numberBetween(100, 999));
+            $this->entityManager->persist($ProductStock);
+            $this->entityManager->flush($ProductStock);
             $ProductClass = new ProductClass();
             $ProductClass
                 ->setCode($faker->word)
@@ -320,11 +435,13 @@ class Generator {
                 ->setStock($ProductStock->getStock())
                 ->setProductStock($ProductStock)
                 ->setProduct($Product)
-                ->setProductType($ProductType)
+                ->setSaleType($SaleType)
                 ->setStockUnlimited(false)
                 ->setPrice02($faker->randomNumber(5))
-                ->setDeliveryDate($DeliveryDates[$faker->numberBetween(0, 8)])
-                ->setDelFlg(Constant::DISABLED);
+                ->setDeliveryDuration($DeliveryDurations[$faker->numberBetween(0, 8)])
+                ->setCreateDate(new \DateTime()) // FIXME
+                ->setUpdateDate(new \DateTime())
+                ->setVisible(true);
 
             if (array_key_exists($i, $ClassCategories1)) {
                 $ProductClass->setClassCategory1($ClassCategories1[$i]);
@@ -333,27 +450,29 @@ class Generator {
                 $ProductClass->setClassCategory2($ClassCategories2[$i]);
             }
 
-            $this->app['orm.em']->persist($ProductClass);
-            $this->app['orm.em']->flush($ProductClass);
+            $this->entityManager->persist($ProductClass);
+            $this->entityManager->flush($ProductClass);
 
             $ProductStock->setProductClass($ProductClass);
             $ProductStock->setProductClassId($ProductClass->getId());
-            $this->app['orm.em']->flush($ProductStock);
+            $this->entityManager->flush($ProductStock);
             $Product->addProductClass($ProductClass);
         }
 
         // デフォルトの商品規格生成
         $ProductStock = new ProductStock();
         $ProductStock
+            ->setCreateDate(new \DateTime()) // FIXME
+            ->setUpdateDate(new \DateTime())
             ->setCreator($Member)
             ->setStock($faker->randomNumber(3));
-        $this->app['orm.em']->persist($ProductStock);
-        $this->app['orm.em']->flush($ProductStock);
+        $this->entityManager->persist($ProductStock);
+        $this->entityManager->flush($ProductStock);
         $ProductClass = new ProductClass();
         if ($product_class_num > 0) {
-            $ProductClass->setDelFlg(Constant::ENABLED);
+            $ProductClass->setVisible(false);
         } else {
-            $ProductClass->setDelFlg(Constant::DISABLED);
+            $ProductClass->setVisible(true);
         }
         $ProductClass
             ->setCode($faker->word)
@@ -361,37 +480,37 @@ class Generator {
             ->setStock($ProductStock->getStock())
             ->setProductStock($ProductStock)
             ->setProduct($Product)
-            ->setProductType($ProductType)
+            ->setSaleType($SaleType)
             ->setPrice02($faker->randomNumber(5))
-            ->setDeliveryDate($DeliveryDates[$faker->numberBetween(0, 8)])
+            ->setDeliveryDuration($DeliveryDurations[$faker->numberBetween(0, 8)])
             ->setStockUnlimited(false)
+            ->setCreateDate(new \DateTime()) // FIXME
+            ->setUpdateDate(new \DateTime())
             ->setProduct($Product);
-        $this->app['orm.em']->persist($ProductClass);
-        $this->app['orm.em']->flush($ProductClass);
+        $this->entityManager->persist($ProductClass);
+        $this->entityManager->flush($ProductClass);
 
         $ProductStock->setProductClass($ProductClass);
         $ProductStock->setProductClassId($ProductClass->getId());
-        $this->app['orm.em']->flush($ProductStock);
+        $this->entityManager->flush($ProductStock);
 
         $Product->addProductClass($ProductClass);
 
-        $Categories = $this->app['eccube.repository.category']->findAll();
-        $i = 0;
+        $Categories = $this->categoryRepository->findAll();
         foreach ($Categories as $Category) {
             $ProductCategory = new ProductCategory();
             $ProductCategory
                 ->setCategory($Category)
                 ->setProduct($Product)
                 ->setCategoryId($Category->getId())
-                ->setProductId($Product->getId())
-                ->setRank($i);
-            $this->app['orm.em']->persist($ProductCategory);
-            $this->app['orm.em']->flush($ProductCategory);
+                ->setProductId($Product->getId());
+            $this->entityManager->persist($ProductCategory);
+            $this->entityManager->flush($ProductCategory);
             $Product->addProductCategory($ProductCategory);
-            $i++;
         }
 
-        $this->app['orm.em']->flush($Product);
+        $this->entityManager->flush($Product);
+
         return $Product;
     }
 
@@ -403,29 +522,37 @@ class Generator {
      * @param \Eccube\Entity\Delivery $Delivery Delivery インスタンス
      * @param integer $add_charge Order に加算される手数料
      * @param integer $add_discount Order に加算される値引き額
+     * @param integer $statusTypeId OrderStatus:id
+     *
      * @return \Eccube\Entity\Order
      */
-    public function createOrder(Customer $Customer, array $ProductClasses = array(), Delivery $Delivery = null, $add_charge = 0, $add_discount = 0, $statusType = null)
+    public function createOrder(Customer $Customer, array $ProductClasses = [], Delivery $Delivery = null, $add_charge = 0, $add_discount = 0, $statusTypeId = null)
     {
         $faker = $this->getFaker();
         $quantity = $faker->randomNumber(2);
-        $Pref = $this->app['eccube.repository.master.pref']->find($faker->numberBetween(1, 47));
-        $Payments = $this->app['eccube.repository.payment']->findAll();
-        if(!$statusType){
-            $statusType = 'order_processing';
+        $Pref = $this->entityManager->find(\Eccube\Entity\Master\Pref::class, $faker->numberBetween(1, 47));
+        $Payments = $this->paymentRepository->findAll();
+        if ($statusTypeId === null) {
+            $statusTypeId = \Eccube\Entity\Master\OrderStatus::PROCESSING;
         }
-        $OrderStatus = $this->app['eccube.repository.order_status']->find($this->app['config'][$statusType]);
+        $OrderStatus = $this->entityManager->find(\Eccube\Entity\Master\OrderStatus::class, $statusTypeId);
         $Order = new Order($OrderStatus);
         $Order->setCustomer($Customer);
         $Order->copyProperties($Customer);
         $Order
+            ->setPreOrderId(sha1(StringUtil::random(32)))
             ->setPref($Pref)
             ->setPayment($Payments[$faker->numberBetween(0, count($Payments) - 1)])
             ->setPaymentMethod($Order->getPayment()->getMethod())
-            ->setMessage($faker->text())
-            ->setNote($faker->text());
-        $this->app['orm.em']->persist($Order);
-        $this->app['orm.em']->flush($Order);
+            ->setMessage($faker->realText())
+            ->setNote($faker->realText())
+            ->setAddPoint(0)    // TODO
+            ->setUsePoint(0)    // TODO
+            ->setOrderNo($faker->numberBetween(100, 999).'-'.$faker->numberBetween(1000000, 9999999).'-'.$faker->numberBetween(1000000, 9999999))
+        ;
+
+        $this->entityManager->persist($Order);
+        $this->entityManager->flush($Order);
         if (!is_object($Delivery)) {
             $Delivery = $this->createDelivery();
             foreach ($Payments as $Payment) {
@@ -436,15 +563,15 @@ class Generator {
                     ->setDelivery($Delivery)
                     ->setPayment($Payment);
                 $Payment->addPaymentOption($PaymentOption);
-                $this->app['orm.em']->persist($PaymentOption);
-                $this->app['orm.em']->flush($PaymentOption);
+                $this->entityManager->persist($PaymentOption);
+                $this->entityManager->flush($PaymentOption);
             }
-            $this->app['orm.em']->flush($Payment);
+            $this->entityManager->flush($Payment);
         }
-        $DeliveryFee = $this->app['eccube.repository.delivery_fee']->findOneBy(
-            array(
-                'Delivery' => $Delivery, 'Pref' => $Pref
-            )
+        $DeliveryFee = $this->deliveryFeeRepository->findOneBy(
+            [
+                'Delivery' => $Delivery, 'Pref' => $Pref,
+            ]
         );
         $fee = 0;
         if (is_object($DeliveryFee)) {
@@ -453,68 +580,108 @@ class Generator {
         $Shipping = new Shipping();
         $Shipping->copyProperties($Customer);
         $Shipping
+            ->setOrder($Order)
             ->setPref($Pref)
             ->setDelivery($Delivery)
-            ->setDeliveryFee($DeliveryFee)
-            ->setShippingDeliveryFee($fee)
             ->setShippingDeliveryName($Delivery->getName());
+
         $Order->addShipping($Shipping);
-        $Shipping->setOrder($Order);
-        $this->app['orm.em']->persist($Shipping);
-        $this->app['orm.em']->flush($Shipping);
+
+        $this->entityManager->persist($Shipping);
+        $this->entityManager->flush($Shipping);
 
         if (empty($ProductClasses)) {
             $Product = $this->createProduct();
             $ProductClasses = $Product->getProductClasses();
         }
-
+        $Taxation = $this->entityManager->find(TaxType::class, TaxType::TAXATION);
+        $NonTaxable = $this->entityManager->find(TaxType::class, TaxType::NON_TAXABLE);
+        $TaxExclude = $this->entityManager->find(TaxDisplayType::class, TaxDisplayType::EXCLUDED);
+        $TaxInclude = $this->entityManager->find(TaxDisplayType::class, TaxDisplayType::INCLUDED);
+        $ItemProduct = $this->entityManager->find(OrderItemType::class, OrderItemType::PRODUCT);
+        $ItemDeliveryFee = $this->entityManager->find(OrderItemType::class, OrderItemType::DELIVERY_FEE);
+        $ItemCharge = $this->entityManager->find(OrderItemType::class, OrderItemType::CHARGE);
+        $ItemDiscount = $this->entityManager->find(OrderItemType::class, OrderItemType::DISCOUNT);
+        /** @var ProductClass $ProductClass */
         foreach ($ProductClasses as $ProductClass) {
+            if (!$ProductClass->isVisible()) {
+                continue;
+            }
             $Product = $ProductClass->getProduct();
-            $OrderDetail = new OrderDetail();
-            $TaxRule = $this->app['eccube.repository.tax_rule']->getByRule(); // デフォルト課税規則
-            $OrderDetail->setProduct($Product)
-                ->setProductClass($ProductClass)
-                ->setProductName($Product->getName())
-                ->setProductCode($ProductClass->getCode())
-                ->setPrice($ProductClass->getPrice02())
-                ->setQuantity($quantity)
-                ->setTaxRule($TaxRule->getCalcRule()->getId())
-                ->setTaxRate($TaxRule->getTaxRate());
-            $this->app['orm.em']->persist($OrderDetail);
-            $OrderDetail->setOrder($Order);
-            $this->app['orm.em']->flush($OrderDetail);
-            $Order->addOrderDetail($OrderDetail);
 
-            $ShipmentItem = new ShipmentItem();
-            $ShipmentItem->setShipping($Shipping)
+            $OrderItem = new OrderItem();
+            $OrderItem->setShipping($Shipping)
                 ->setOrder($Order)
                 ->setProductClass($ProductClass)
                 ->setProduct($Product)
                 ->setProductName($Product->getName())
                 ->setProductCode($ProductClass->getCode())
                 ->setPrice($ProductClass->getPrice02())
-                ->setQuantity($quantity);
-            $Shipping->addShipmentItem($ShipmentItem);
-            $this->app['orm.em']->persist($ShipmentItem);
-            $this->app['orm.em']->flush($ShipmentItem);
+                ->setQuantity($quantity)
+                ->setTaxType($Taxation) // 課税
+                ->setTaxDisplayType($TaxExclude) // 税別
+                ->setOrderItemType($ItemProduct) // 商品明細
+            ;
+            if ($ProductClass->hasClassCategory1()) {
+                $OrderItem
+                    ->setClassName1($ProductClass->getClassCategory1()->getClassName()->getName())
+                    ->setClassCategoryName1($ProductClass->getClassCategory1()->getName())
+                ;
+            }
+            if ($ProductClass->hasClassCategory2()) {
+                $OrderItem
+                    ->setClassName2($ProductClass->getClassCategory2()->getClassName()->getName())
+                    ->setClassCategoryName2($ProductClass->getClassCategory2()->getName())
+                ;
+            }
+            $Shipping->addOrderItem($OrderItem);
+            $Order->addOrderItem($OrderItem);
         }
 
-        $subTotal = $Order->calculateSubTotal();
-        // TODO 送料無料条件は考慮していない. 必要であれば Order から再集計すること.
-        $Order->setDeliveryFeeTotal($Shipping->getShippingDeliveryFee());
-        $Order->setSubTotal($subTotal);
+        $OrderItemDeliveryFee = new OrderItem();
+        $OrderItemDeliveryFee->setShipping($Shipping)
+            ->setOrder($Order)
+            ->setProductName('送料')
+            ->setPrice($fee)
+            ->setQuantity(1)
+            ->setTaxType($Taxation) // 課税
+            ->setTaxDisplayType($TaxInclude) // 税込
+            ->setOrderItemType($ItemDeliveryFee); // 送料明細
+        $Shipping->addOrderItem($OrderItemDeliveryFee);
+        $Order->addOrderItem($OrderItemDeliveryFee);
 
-        $Order->setCharge($Order->getCharge() + $add_charge);
-        $Order->setDiscount($Order->getDiscount() + $add_discount);
+        $charge = $Order->getCharge() + $add_charge;
+        $OrderItemCharge = new OrderItem();
+        $OrderItemCharge
+            // ->setShipping($Shipping) // Shipping には登録しない
+            ->setOrder($Order)
+            ->setProductName('手数料')
+            ->setPrice($charge)
+            ->setQuantity(1)
+            ->setTaxType($Taxation) // 課税
+            ->setTaxDisplayType($TaxInclude) // 税込
+            ->setOrderItemType($ItemCharge); // 手数料明細
+        // $Shipping->addOrderItem($OrderItemCharge); // Shipping には登録しない
+        $Order->addOrderItem($OrderItemCharge);
 
-        $total = $Order->getTotalPrice();
-        $Order->setTotal($total);
-        $Order->setPaymentTotal($total);
+        $discount = $Order->getDiscount() + $add_discount;
+        $OrderItemDiscount = new OrderItem();
+        $OrderItemDiscount
+            // ->setShipping($Shipping) // Shipping には登録しない
+            ->setOrder($Order)
+            ->setProductName('値引き')
+            ->setPrice($discount * -1)
+            ->setQuantity(1)
+            ->setTaxType($NonTaxable) // 不課税
+            ->setTaxDisplayType($TaxInclude) // 税込
+            ->setOrderItemType($ItemDiscount); // 値引き明細
+        // $Shipping->addOrderItem($OrderItemDiscount); // Shipping には登録しない
+        $Order->addOrderItem($OrderItemDiscount);
 
-        $tax = $Order->calculateTotalTax();
-        $Order->setTax($tax);
+        $this->orderPurchaseFlow->validate($Order, new PurchaseContext($Order));
 
-        $this->app['orm.em']->flush($Order);
+        $this->entityManager->flush();
+
         return $Order;
     }
 
@@ -526,11 +693,12 @@ class Generator {
      * @param integer $charge 手数料
      * @param integer $rule_min 下限金額
      * @param integer $rule_max 上限金額
+     *
      * @return \Eccube\Entity\Payment
      */
     public function createPayment(Delivery $Delivery, $method, $charge = 0, $rule_min = 0, $rule_max = 999999999)
     {
-        $Member = $this->app['eccube.repository.member']->find(2);
+        $Member = $this->entityManager->find(\Eccube\Entity\Member::class, 2);
         $Payment = new Payment();
         $Payment
             ->setMethod($method)
@@ -538,9 +706,9 @@ class Generator {
             ->setRuleMin($rule_min)
             ->setRuleMax($rule_max)
             ->setCreator($Member)
-            ->setDelFlg(Constant::DISABLED);
-        $this->app['orm.em']->persist($Payment);
-        $this->app['orm.em']->flush($Payment);
+            ->setVisible(true);
+        $this->entityManager->persist($Payment);
+        $this->entityManager->flush($Payment);
 
         $PaymentOption = new PaymentOption();
         $PaymentOption
@@ -550,11 +718,12 @@ class Generator {
             ->setPayment($Payment);
         $Payment->addPaymentOption($PaymentOption);
 
-        $this->app['orm.em']->persist($PaymentOption);
-        $this->app['orm.em']->flush($PaymentOption);
+        $this->entityManager->persist($PaymentOption);
+        $this->entityManager->flush($PaymentOption);
 
         $Delivery->addPaymentOption($PaymentOption);
-        $this->app['orm.em']->flush($Delivery);
+        $this->entityManager->flush($Delivery);
+
         return $Payment;
     }
 
@@ -562,12 +731,14 @@ class Generator {
      * 配送方法を生成する.
      *
      * @param integer $delivery_time_max_pattern 配送時間の最大パターン数
+     *
      * @return Delivery
      */
     public function createDelivery($delivery_time_max_pattern = 5)
     {
-        $Member = $this->app['eccube.repository.member']->find(2);
-        $ProductType = $this->app['eccube.repository.master.product_type']->find(1);
+        $Member = $this->entityManager->find(\Eccube\Entity\Member::class, 2);
+        $SaleType = $this->entityManager->find(\Eccube\Entity\Master\SaleType::class, 1);
+
         $faker = $this->getFaker();
         $Delivery = new Delivery();
         $Delivery
@@ -575,52 +746,57 @@ class Generator {
             ->setName($faker->word)
             ->setDescription($faker->paragraph())
             ->setConfirmUrl($faker->url)
-            ->setRank($faker->randomNumber(2))
+            ->setSortNo($faker->randomNumber(2))
+            ->setCreateDate(new \DateTime()) // FIXME
+            ->setUpdateDate(new \DateTime())
             ->setCreator($Member)
-            ->setProductType($ProductType)
-            ->setDelFlg(Constant::DISABLED);
-        $this->app['orm.em']->persist($Delivery);
-        $this->app['orm.em']->flush($Delivery);
+            ->setSaleType($SaleType)
+            ->setVisible(true);
+        $this->entityManager->persist($Delivery);
+        $this->entityManager->flush($Delivery);
 
         $delivery_time_patten = $faker->numberBetween(0, $delivery_time_max_pattern);
         for ($i = 0; $i < $delivery_time_patten; $i++) {
             $DeliveryTime = new DeliveryTime();
             $DeliveryTime
                 ->setDelivery($Delivery)
-                ->setDeliveryTime($faker->word);
-            $this->app['orm.em']->persist($DeliveryTime);
-            $this->app['orm.em']->flush($DeliveryTime);
+                ->setDeliveryTime($faker->word)
+                ->setSortNo($i + 1)
+                ->setVisible(true);
+            $this->entityManager->persist($DeliveryTime);
+            $this->entityManager->flush($DeliveryTime);
             $Delivery->addDeliveryTime($DeliveryTime);
         }
 
-        $Prefs = $this->app['eccube.repository.master.pref']->findAll();
+        $Prefs = $this->prefRepository->findAll();
+
         foreach ($Prefs as $Pref) {
             $DeliveryFee = new DeliveryFee();
             $DeliveryFee
                 ->setFee($faker->randomNumber(4))
                 ->setPref($Pref)
                 ->setDelivery($Delivery);
-            $this->app['orm.em']->persist($DeliveryFee);
-            $this->app['orm.em']->flush($DeliveryFee);
+            $this->entityManager->persist($DeliveryFee);
+            $this->entityManager->flush($DeliveryFee);
             $Delivery->addDeliveryFee($DeliveryFee);
         }
 
-        $this->app['orm.em']->flush($Delivery);
+        $this->entityManager->flush($Delivery);
+
         return $Delivery;
     }
 
     /**
      * ページを生成する
      *
-     * @return PageLayout
+     * @return Page
      */
-    public function createPageLayout()
+    public function createPage()
     {
         $faker = $this->getFaker();
-        $DeviceType = $this->app['eccube.repository.master.device_type']->find(DeviceType::DEVICE_TYPE_PC);
-        /** @var PageLayout $PageLayout */
-        $PageLayout = $this->app['eccube.repository.page_layout']->newPageLayout($DeviceType);
-        $PageLayout
+        /** @var Page $Page */
+        $Page = $this->pageRepository->newPage();
+        $Page
             ->setName($faker->word)
             ->setUrl($faker->word)
             ->setFileName($faker->word)
@@ -628,22 +804,75 @@ class Generator {
             ->setDescription($faker->word)
             ->setKeyword($faker->word)
             ->setMetaRobots($faker->word)
-            ->setMetaTags('<meta name="meta_tags_test" content="' . str_replace('\'', '', $faker->word) . '" />')
+            ->setMetaTags('<meta name="meta_tags_test" content="'.str_replace('\'', '', $faker->word).'" />')
         ;
-        $this->app['orm.em']->persist($PageLayout);
-        $this->app['orm.em']->flush($PageLayout);
-        return $PageLayout;
+        $this->entityManager->persist($Page);
+        $this->entityManager->flush($Page);
+
+        return $Page;
     }
 
     /**
      * Faker を生成する.
      *
-     * @param string $locale ロケールを指定する. デフォルト ja_JP
      * @return Faker\Generator
-     * @link https://github.com/fzaninotto/Faker
+     *
+     * @see https://github.com/fzaninotto/Faker
      */
-    protected function getFaker($locale = 'ja_JP')
+    protected function getFaker()
     {
-        return Faker::create($locale);
+        return new Generator_Faker(Faker::create($this->locale));
     }
 }
+
+class Generator_Faker extends Faker
+{
+    private $faker;
+
+    public function __construct(\Faker\Generator $faker)
+    {
+        $this->faker = $faker;
+    }
+
+    public function __get($attribute)
+    {
+        return $this->faker->$attribute;
+    }
+
+    public function __call($method, $attributes)
+    {
+        return call_user_func_array([$this->faker, $method], $attributes);
+    }
+
+    public function __isset($name)
+    {
+        if (isset($this->faker->$name)) {
+            return true;
+        }
+
+        foreach ($this->faker->getProviders() as $provider) {
+            if (method_exists($provider, $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+// class Generator_FakerTest extends EccubeTestCase
+// {
+//     public function testKana01ShouldNotEmptyInJAJP()
+//     {
+//         $generator = new Generator($this->app, 'ja_JP');
+//         $Customer = $generator->createCustomer();
+//         self::assertNotEmpty($Customer->getKana01());
+//     }
+
+//     public function testKana01ShouldEmptyInENUS()
+//     {
+//         $generator = new Generator($this->app, 'en_US');
+//         $Customer = $generator->createCustomer();
+//         self::assertEmpty($Customer->getKana01());
+//     }
+// }

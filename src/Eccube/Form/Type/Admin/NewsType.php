@@ -1,40 +1,40 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\News;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\Extension\Core\Type\DateTimeType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 class NewsType extends AbstractType
 {
-    private $config;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct($config)
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -43,48 +43,49 @@ class NewsType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         $builder
-            ->add('date', 'date', array(
-                'label' => '日付',
-                'required' => true,
+            ->add('publish_date', DateTimeType::class, [
+                'date_widget' => 'choice',
                 'input' => 'datetime',
-                'widget' => 'single_text',
-                'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-                'constraints' => array(
+                'format' => 'yyyy-MM-dd hh:mm',
+                'years' => range($this->eccubeConfig['eccube_news_start_year'], date('Y') + 3),
+                'constraints' => [
                     new Assert\NotBlank(),
-                ),
-            ))
-            ->add('title', 'text', array(
-                'label' => 'タイトル',
+                ],
+            ])
+            ->add('title', TextType::class, [
                 'required' => true,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array('max' => $this->config['mtext_len'])),
-                ),
-            ))
-            ->add('url', 'text', array(
-                'label' => 'URL',
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_mtext_len']]),
+                ],
+            ])
+            ->add('url', TextType::class, [
                 'required' => false,
-                'constraints' => array(
+                'constraints' => [
                     new Assert\Url(),
-                    new Assert\Length(array('max' => $this->config['mtext_len'])),
-                ),
-            ))
-            ->add('link_method', 'checkbox', array(
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_mtext_len']]),
+                ],
+            ])
+            ->add('link_method', CheckboxType::class, [
                 'required' => false,
-                'label' => '別ウィンドウを開く',
+                'label' => 'admin.content.news.new_window',
                 'value' => '1',
-            ))
-            ->add('comment', 'textarea', array(
-                'label' => '本文',
+            ])
+            ->add('description', TextareaType::class, [
                 'required' => false,
-                'constraints' => array(
-                    new Assert\Length(array('max' => $this->config['ltext_len'])),
-                ),
-            ))
-            ->add('select', 'hidden', array(
-                'data' => '0',
-            ));
+                'attr' => [
+                    'rows' => 8,
+                ],
+                'constraints' => [
+                    new Assert\Length(['max' => $this->eccubeConfig['eccube_ltext_len']]),
+                ],
+            ])
+            ->add('visible', ChoiceType::class, [
+                'label' => false,
+                'choices' => ['admin.content.news.display_status__show' => true, 'admin.content.news.display_status__hide' => false],
+                'required' => true,
+                'expanded' => false,
+            ]);
     }
 
     /**
@@ -92,15 +93,15 @@ class NewsType extends AbstractType
      */
     public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
-            'data_class' => 'Eccube\Entity\News',
-        ));
+        $resolver->setDefaults([
+            'data_class' => News::class,
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_news';
     }

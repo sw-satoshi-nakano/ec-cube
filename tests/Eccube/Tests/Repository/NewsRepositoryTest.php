@@ -1,12 +1,21 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Repository;
 
-use Eccube\Tests\EccubeTestCase;
-use Eccube\Application;
-use Eccube\Common\Constant;
 use Eccube\Entity\News;
-
+use Eccube\Repository\NewsRepository;
+use Eccube\Tests\EccubeTestCase;
 
 /**
  * NewsRepository test cases.
@@ -17,177 +26,82 @@ class NewsRepositoryTest extends EccubeTestCase
 {
     protected $Member;
 
+    /** @var NewsRepository */
+    protected $newsRepo;
+
     public function setUp()
     {
         parent::setUp();
+        $this->newsRepo = $this->container->get(NewsRepository::class);
         $this->removeNews();
-        $this->Member = $this->app['eccube.repository.member']->find(2);
 
         $faker = $this->getFaker();
         for ($i = 0; $i < 3; $i++) {
             $News = new News();
             $News
                 ->setTitle('news-'.$i)
-                ->setComment($faker->text())
+                ->setDescription($faker->realText())
                 ->setUrl($faker->url)
-                ->setCreator($this->Member)
-                ->setSelect(1)
                 ->setLinkMethod(1)
-                ->setDelFlg(0)
-                ->setRank($i)
-                ;
-            $this->app['orm.em']->persist($News);
+                ->setVisible(true)
+                ->setPublishDate(new \DateTime());
+            $this->entityManager->persist($News);
         }
-        $this->app['orm.em']->flush();
+        $this->entityManager->flush();
     }
 
-    public function removeNews()
+    protected function removeNews()
     {
-        $All = $this->app['eccube.repository.news']->findAll();
+        $All = $this->newsRepo->findAll();
         foreach ($All as $News) {
-            $this->app['orm.em']->remove($News);
+            $this->entityManager->remove($News);
         }
-        $this->app['orm.em']->flush();
-    }
-
-    public function testUp()
-    {
-        $News = $this->app['eccube.repository.news']->findOneBy(
-            array('title' => 'news-1')
-        );
-        $this->assertNotNull($News);
-        $this->assertEquals(1, $News->getRank());
-
-        // rank up 1 => 2
-        $result = $this->app['eccube.repository.news']->up($News);
-
-        $this->assertTrue($result);
-        $this->expected = 2;
-        $this->actual = $News->getRank();
-        $this->verify('rank は '.$this->expected.'ではありません');
-    }
-
-    public function testUpWithException()
-    {
-        $News = $this->app['eccube.repository.news']->findOneBy(
-            array('title' => 'news-2')
-        );
-
-        $result = $this->app['eccube.repository.news']->up($News);
-
-        $this->assertFalse($result);
-    }
-
-    public function testDown()
-    {
-        $News = $this->app['eccube.repository.news']->findOneBy(
-            array('title' => 'news-1')
-        );
-        $this->assertNotNull($News);
-        $this->assertEquals(1, $News->getRank());
-
-        // rank down 1 => 0
-        $result = $this->app['eccube.repository.news']->down($News);
-
-        $this->assertTrue($result);
-        $this->expected = 0;
-        $this->actual = $News->getRank();
-        $this->verify('rank は '.$this->expected.'ではありません');
-    }
-
-    public function testDownWithException()
-    {
-        $News = $this->app['eccube.repository.news']->findOneBy(
-            array('title' => 'news-0')
-        );
-
-        $result = $this->app['eccube.repository.news']->down($News);
-
-        $this->assertFalse($result);
+        $this->entityManager->flush();
     }
 
     public function testSave()
     {
+        $dateTime = new \DateTime();
         $faker = $this->getFaker();
+        $url = $faker->url;
+        $title = $faker->text();
         $News = new News();
         $News
-            ->setTitle('news-10')
-            ->setComment($faker->text())
-            ->setUrl($faker->url)
-            ->setCreator($this->Member)
-            ->setSelect(1)
+            ->setPublishDate($dateTime)
+            ->setTitle($title)
+            ->setDescription($faker->realText())
+            ->setUrl($url)
+            ->setVisible(true)
             ->setLinkMethod(1);
 
-        $result = $this->app['eccube.repository.news']->save($News);
-        $this->assertTrue($result);
+        $this->newsRepo->save($News);
 
-        $this->expected = 3;
-        $this->actual = $News->getRank();
-        $this->verify('rank は'.$this->expected.'ではありません');
+        // verify
+        /** @var News $new */
+        $new = $this->newsRepo->findOneBy(['title' => $title, 'url' => $url]);
+        $this->actual = $new->getPublishDate();
+        $this->expected = $dateTime;
+        $this->verify();
     }
-
-    public function testSaveWithRankNull()
-    {
-        $this->removeNews();    // 一旦全件削除
-        $faker = $this->getFaker();
-        $News = new News();
-        $News
-            ->setTitle('news-10')
-            ->setComment($faker->text())
-            ->setUrl($faker->url)
-            ->setCreator($this->Member)
-            ->setSelect(1)
-            ->setLinkMethod(1);
-
-        $result = $this->app['eccube.repository.news']->save($News);
-        $this->assertTrue($result);
-
-        $this->expected = 1;
-        $this->actual = $News->getRank();
-        $this->verify('rank は'.$this->expected.'ではありません');
-    }
-
-    public function testSaveWithException()
-    {
-        $faker = $this->getFaker();
-        $News = new News();
-        $News
-            ->setTitle('news-10')
-            ->setComment($faker->text())
-            ->setUrl($faker->url)
-            ->setCreator($this->Member)
-            ->setSelect(null)   // select は not null なので例外になる
-            ->setLinkMethod(1);
-
-        $result = $this->app['eccube.repository.news']->save($News);
-        $this->assertFalse($result);
-    }
-
 
     public function testDelete()
     {
-        $News = $this->app['eccube.repository.news']->findOneBy(
-            array('title' => 'news-0')
+        $News = $this->newsRepo->findOneBy(
+            ['title' => 'news-0']
         );
 
-        $updateDate = $News->getUpdateDate();
-        sleep(1);
-        $result = $this->app['eccube.repository.news']->delete($News);
+        $newsId = $News->getId();
+        $this->newsRepo->delete($News);
 
-        $this->assertTrue($result);
-        $this->assertEquals(Constant::ENABLED, $News->getDelFlg());
-        $this->assertTrue(0 === $News->getRank());
-
-        $this->expected = $updateDate;
-        $this->actual = $News->getUpdateDate();
-        $this->assertNotEquals($this->expected, $this->actual);
+        self::assertNull($this->newsRepo->find($newsId));
     }
 
-    public function testDeleteWithException()
+    public function testGetList()
     {
-        $News = new News();     // 存在しないので例外が発生する
-        $result = $this->app['eccube.repository.news']->delete($News);
+        $arrNews = $this->newsRepo->getList();
+        $this->actual = count($arrNews);
+        $this->expected = 3;
 
-        $this->assertFalse($result, '削除に失敗するはず');
+        $this->verify();
     }
 }

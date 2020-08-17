@@ -1,130 +1,129 @@
 {#
 This file is part of EC-CUBE
 
-Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
 
-http://www.lockon.co.jp/
+http://www.ec-cube.co.jp/
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
 #}
-{% extends 'default_frame.twig' %}
+{% extends '@admin/default_frame.twig' %}
 
 {% set menus = ['product', 'category_csv_import'] %}
 
-{% block title %}商品管理{% endblock %}
-{% block sub_title %}カテゴリ登録CSVアップロード{% endblock %}
+{% block title %}{{ 'admin.product.category_csv_upload'|trans }}{% endblock %}
+{% block sub_title %}{{ 'admin.product.product_management'|trans }}{% endblock %}
 
-{% form_theme form 'Form/bootstrap_3_horizontal_layout.html.twig' %}
+{% form_theme form '@admin/Form/bootstrap_4_horizontal_layout.html.twig' %}
 
 {% block javascript %}
-<script src="{{ app.config.admin_urlpath }}/assets/js/vendor/spin.min.js"></script>
-<script>
-$(function() {
+    <script src="{{ asset('assets/js/vendor/spin.min.js', 'admin') }}"></script>
+    <script>
+        $(function() {
 
-    var opts = {
-        lines: 13,
-        length: 30,
-        width: 2,
-        radius: 12,
-        corners: 1,
-        rotate: 0,
-        direction: 1,
-        color: '#BBB',
-        speed: 1,
-        trail: 67,
-        shadow: true,
-        hwaccel: false,
-        className: 'spinner',
-        zIndex: 2e9,
-        top: top
-    };
+            var opts = {
+                lines: 13,
+                length: 30,
+                width: 2,
+                radius: 12,
+                corners: 1,
+                rotate: 0,
+                direction: 1,
+                color: '#BBB',
+                speed: 1,
+                trail: 67,
+                shadow: true,
+                hwaccel: false,
+                className: 'spinner',
+                zIndex: 2e9,
+                top: top
+            };
 
-    ImageSpinner = new Spinner(opts).spin(document.getElementById('spinner'));
-    ImageSpinner.stop();
+            ImageSpinner = new Spinner(opts).spin(document.getElementById('spinner'));
+            ImageSpinner.stop();
 
-    $('#upload-form').submit(function() {
-        $('#upload-button').attr('disabled', 'disabled');
-        $('#download-button').attr('disabled', 'disabled');
-        ImageSpinner.spin(document.getElementById('spinner'));
-    });
-});
-</script>
+            $('#upload-form').submit(function() {
+                $('#upload-button').attr('disabled', 'disabled');
+                $('#download-button').attr('disabled', 'disabled');
+                ImageSpinner.spin(document.getElementById('spinner'));
+            });
+
+            $('#file-select').click(function() {
+                $('#admin_csv_import_import_file').click();
+                $('#admin_csv_import_import_file').on('change', function() {
+                    var files = $(this).prop('files');
+                    if (files.length) {
+                        $('#admin_csv_import_import_file_name').text(files[0].name);
+                    }
+                });
+            });
+        });
+    </script>
 {% endblock javascript %}
-
 {% block main %}
-<div class="row">
-    <div class="col-md-12">
-        <form id="upload-form" class="form-inline" method="post" action="{{ url('admin_product_category_csv_import') }}" {{ form_enctype(form) }}>
-            {{ form_widget(form._token) }}
-            <div id="upload_wrap" class="box">
-                <div id="upload_box__header" class="box-header">
-                    <h3 class="box-title">カテゴリ登録CSV</h3>
-                </div><!-- /.box-header -->
-                <div id="upload_box__body" class="box-body">
-                    <div id="upload_box__body_inner" class="form-group">
-                        <label class="col-sm-5 control-label">CSVファイル選択</label>
-                        <div id="upload_box__file" class="col-sm-7">
-                            {{ form_widget(form.import_file, {'attr': {'accept': 'text/csv,text/tsv'}}) }}
-                            {{ form_errors(form.import_file) }}
-                        </div>
-                        {% for error in errors %}
-                            <div id="upload_box__error--{{ loop.index }}" class="text-danger">{{ error.message }}</div>
-                        {% endfor %}
+    <div class="c-contentsArea__cols">
+        <div class="c-contentsArea__primaryCol">
+            <div class="c-primaryCol">
+                <div class="card rounded border-0 mb-4">
+                    <div class="card-header">
+                        <div class="d-inline-block" data-tooltip="true" data-placement="top" title="{{ 'tooltip.category.csv_upload'|trans }}"><span>{{ 'admin.common.csv_upload'|trans }}</span><i class="fa fa-question-circle fa-lg fa-lg ml-1"></i></div>
                     </div>
-                    <div id="spinner"></div>
-                </div><!-- /.box-body -->
-                <div class="box-footer text-center">
-                    <button id="upload-button" type="submit" class="btn btn-primary btn-sm">CSVファイルのアップロード</button>
-                </div><!-- /.box-footer -->
-            </div><!-- /.box -->
-        </form>
-    </div><!-- /.col -->
-</div>
-
-<div id="file_format" class="row">
-    <div id="file_format_box" class="col-md-12">
-        <div id="file_format_box__body" class="box">
-            <div id="file_format_box__header" class="box-header">
-                <a href="{{ url('admin_product_csv_template', {'type': 'category'}) }}" id="download-button" class="btn btn-default pull-right btn-xs">雛形ファイルダウンロード</a>
-                <h3 class="box-title">カテゴリ登録CSVファイルフォーマット</h3>
-            </div><!-- /.box-header -->
-            <div id="file_format_box__body_inner" class="box-body no-padding">
-                <div id="file_format_box__list_box" class="table_list">
-                    <div id="file_format_box__list_box_body" class="table-responsive no-border table-menu table-responsive-overflow">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr id="file_format_box__header" class="text-nowrap">
-                                    {% for header in headers|keys %}
-                                        <th id="file_format_box__header--{{ loop.index }}">{{ header }}</th>
+                    <div id="ex-csv_category-upload" class="card-body">
+                        <div class="row">
+                            <div class="col-2"><span>{{ 'admin.common.csv_select'|trans }}</span></div>
+                            <div class="col">
+                                <form id="upload-form" method="post" action="{{ url('admin_product_category_csv_import') }}" enctype="multipart/form-data">
+                                    {{ form_widget(form._token) }}
+                                    <div class="mb-2">
+                                        <span id="file-select" class="btn btn-ec-regular mr-2">{{ 'admin.common.file_select'|trans }}</span>
+                                        <span id="admin_csv_import_import_file_name">{{ 'admin.common.file_select_empty'|trans }}</span>
+                                        {{ form_widget(form.import_file, {'attr': {'accept': 'text/csv,text/tsv', 'class': 'd-none'}}) }}
+                                        {{ form_errors(form.import_file) }}
+                                    </div>
+                                    <button class="btn btn-ec-conversion" id="upload-button" type="submit">{{ 'admin.common.bulk_registration'|trans }}</button>
+                                    {% for error in errors %}
+                                        <div class="text-danger">{{ error }}</div>
                                     {% endfor %}
-                                </tr>
-                            </thead>
+                                </form>
+                            </div>
+                        </div>
+                        <div id="spinner"></div>
+                    </div>
+                </div>
+                <div class="card rounded border-0 mb-4">
+                    <div class="card-header">
+                        <div class="row justify-content-between">
+                            <div class="col-6">
+                                <div class="d-inline-block" data-tooltip="true" data-placement="top" title="{{ 'tooltip.category.csv_format'|trans }}"><span class="align-middle">{{ 'admin.common.csv_format'|trans }}</span><i class="fa fa-question-circle fa-lg fa-lg ml-1"></i></div>
+                            </div>
+                            <div class="col-4 text-right">
+                                <a href="{{ url('admin_product_csv_template', {'type': 'category'}) }}" class="btn btn-ec-regular" id="download-button">{{ 'admin.common.csv_skeleton_download'|trans }}</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="ex-csv_category-format" class="card-body">
+                        <table class="table table-striped table-bordered">
                             <tbody>
-                                <tr id="file_format_box__list" class="text-nowrap">
-                                    <td id="file_format_box__id">新規登録時は未設定<br>既存カテゴリの更新はカテゴリIDを設定</td>
-                                    <td id="file_format_box__name">必須</td>
-                                    <td id="file_format_box__parent_id"></td>
-                                    <td>設定されていない場合<br>0を登録</td>
+                            {% for header, key in headers %}
+                                <tr>
+                                    <th class="w-25 align-middle table-ec-lightGray" id="file_format_box__header--{{ loop.index }}">{{ header }}
+                                        {% if key.required %}
+                                            <span class="badge badge-primary ml-1">{{ 'admin.common.required'|trans }}</span>
+                                        {% endif %}
+                                    </th>
+                                    <td class="align-middle">
+                                        {% if key.description %}
+                                            {{ key.description|trans|raw }}
+                                        {% endif %}
+                                    </td>
                                 </tr>
+                            {% endfor %}
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div><!-- /.box-body -->
-        </div><!-- /.box -->
-    </div><!-- /.col -->
-</div>
-
+            </div>
+        </div>
+    </div>
 {% endblock %}

@@ -1,43 +1,48 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Install;
 
+use Eccube\Common\EccubeConfig;
+use Eccube\Form\Validator\Email;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\PasswordType;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class Step3Type extends AbstractType
 {
-    public $app;
+    /**
+     * @var EccubeConfig
+     */
+    protected $eccubeConfig;
 
-    public function __construct(\Silex\Application $app)
+    /**
+     * @var ValidatorInterface
+     */
+    protected $validator;
+
+    public function __construct(ValidatorInterface $validator, EccubeConfig $eccubeConfig)
     {
-        $this->app = $app;
+        $this->validator = $validator;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -45,124 +50,109 @@ class Step3Type extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $app = $this->app;
         $builder
-            ->add('shop_name', 'text', array(
-                'label' => 'あなたの店名',
-                'constraints' => array(
+            ->add('shop_name', TextType::class, [
+                'label' => trans('install.shop_name'),
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'max' => $this->app['config']['stext_len'],
-                    )),
-                ),
-            ))
-            ->add('email', 'email', array(
-                'label' => 'メールアドレス（受注メールなどの宛先になります）',
-                'constraints' => array(
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_stext_len'],
+                    ]),
+                ],
+            ])
+            ->add('email', EmailType::class, [
+                'label' => trans('install.mail_address'),
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Email(array('strict' => true)),
-                ),
-            ))
-            ->add('login_id', 'text', array(
-                'label' => '管理画面ログインID（半角英数字'.$this->app['config']['id_min_len'].'～'.$this->app['config']['id_max_len'].'文字）',
-                'constraints' => array(
+                    new Email(['strict' => $this->eccubeConfig['eccube_rfc_email_check']]),
+                ],
+            ])
+            ->add('login_id', TextType::class, [
+                'label' => trans('install.login_id', [
+                    '%min%' => $this->eccubeConfig['eccube_id_min_len'],
+                    '%max%' => $this->eccubeConfig['eccube_id_max_len'],
+                ]),
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'min' => $this->app['config']['id_min_len'],
-                        'max' => $this->app['config']['id_max_len'],
-                    )),
-                    new Assert\Regex(array(
+                    new Assert\Length([
+                        'min' => $this->eccubeConfig['eccube_id_min_len'],
+                        'max' => $this->eccubeConfig['eccube_id_max_len'],
+                    ]),
+                    new Assert\Regex([
                         'pattern' => '/^[[:graph:][:space:]]+$/i',
-                        'message' => 'form.type.graph.invalid',
-                    )),
-                ),
-            ))
-            ->add('login_pass', 'password', array(
-                'label' => '管理画面パスワード（半角英数字'.$this->app['config']['password_min_len'].'～'.$this->app['config']['password_max_len'].'文字）',
-                'constraints' => array(
+                        'message' => 'form_error.graph_only',
+                    ]),
+                ],
+            ])
+            ->add('login_pass', PasswordType::class, [
+                'label' => trans('install.login_password', [
+                    '%min%' => $this->eccubeConfig['eccube_password_min_len'],
+                    '%max%' => $this->eccubeConfig['eccube_password_max_len'],
+                ]),
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'min' => $this->app['config']['password_min_len'],
-                        'max' => $this->app['config']['password_max_len'],
-                    )),
-                    new Assert\Regex(array(
+                    new Assert\Length([
+                        'min' => $this->eccubeConfig['eccube_password_min_len'],
+                        'max' => $this->eccubeConfig['eccube_password_max_len'],
+                    ]),
+                    new Assert\Regex([
                         'pattern' => '/^[[:graph:][:space:]]+$/i',
-                        'message' => 'form.type.graph.invalid',
-                    )),
-                ),
-            ))
-            ->add('admin_dir', 'text', array(
-                'label' => '管理画面のディレクトリ名（半角英数字'.$this->app['config']['id_min_len'].'～'.$this->app['config']['id_max_len'].'文字）',
-                'constraints' => array(
+                        'message' => 'form_error.graph_only',
+                    ]),
+                ],
+            ])
+            ->add('admin_dir', TextType::class, [
+                'label' => trans('install.directory_name', [
+                    '%min%' => $this->eccubeConfig['eccube_id_min_len'],
+                    '%max%' => $this->eccubeConfig['eccube_id_max_len'],
+                ]),
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Length(array(
-                        'min' => $this->app['config']['id_min_len'],
-                        'max' => $this->app['config']['id_max_len'],
-                    )),
-                    new Assert\Regex(array('pattern' => '/\A\w+\z/')),
-                ),
-            ))
-            ->add('admin_force_ssl', 'checkbox', array(
-                'label' => 'サイトへのアクセスを、SSL（https）経由に制限します',
+                    new Assert\Length([
+                        'min' => $this->eccubeConfig['eccube_id_min_len'],
+                        'max' => $this->eccubeConfig['eccube_id_max_len'],
+                    ]),
+                    new Assert\Regex(['pattern' => '/\A\w+\z/']),
+                    new Assert\NotEqualTo(['value' => 'admin', 'message' => 'form_error.admin_is_not_available']),
+                ],
+            ])
+            ->add('admin_force_ssl', CheckboxType::class, [
+                'label' => trans('install.https_only'),
                 'required' => false,
-            ))
-            ->add('admin_allow_hosts', 'textarea', array(
-                'label' => '管理画面へのアクセスを、以下のIPに制限します',
-                'help' => '複数入力する場合は、IPとIPの間に改行をいれてください',
+            ])
+            ->add('admin_allow_hosts', TextareaType::class, [
+                'label' => trans('install.ip_restriction'),
                 'required' => false,
-            ))
-            ->add('trusted_proxies_connection_only', 'checkbox', array(
-                'label' => 'サイトが信頼されたロードバランサー、プロキシサーバからのみアクセスされる',
+            ])
+            ->add('smtp_host', TextType::class, [
+                'label' => trans('install.smtp_host'),
                 'required' => false,
-            ))
-            ->add('trusted_proxies', 'textarea', array(
-                'label' => 'ロードバランサー、プロキシサーバのIP',
-                'help' => '複数入力する場合は、IPとIPの間に改行をいれてください（X-Forwarded-Proto、X-Forwarded-Host、X-Forwarded-Portヘッダーに対応してる必要があります）',
+            ])
+            ->add('smtp_port', TextType::class, [
+                'label' => trans('install.smtp_port'),
                 'required' => false,
-            ))
-            ->add('mail_backend', 'choice', array(
-                'label' => 'メーラーバックエンド',
-                'choices' => array(
-                    'mail' => 'mail（PHPの組み込み関数 mail() を使用してメールを送信）',
-                    'smtp' => 'SMTP（SMTPサーバに直接接続してメールを送信）',
-                    'sendmail' => 'sendmail（sendmailプログラムによりメールを送信）',
-                ),
-                'expanded' => true,
-                'multiple' => false,
-            ))
-            ->add('smtp_host', 'text', array(
-                'label' => 'SMTPホスト',
-                'help' => 'メーラーバックエンドがSMTPの場合のみ指定',
+            ])
+            ->add('smtp_username', TextType::class, [
+                'label' => trans('install.smtp_user'),
                 'required' => false,
-            ))
-            ->add('smtp_port', 'text', array(
-                'label' => 'SMTPポート',
-                'help' => 'メーラーバックエンドがSMTPの場合のみ指定',
+            ])
+            ->add('smtp_password', PasswordType::class, [
+                'label' => trans('install.smtp_password'),
                 'required' => false,
-            ))
-            ->add('smtp_username', 'text', array(
-                'label' => 'SMTPユーザー',
-                'help' => 'メーラーバックエンドがSMTPかつSMTP-AUTH使用時のみ指定',
-                'required' => false,
-            ))
-            ->add('smtp_password', 'password', array(
-                'label' => 'SMTPパスワード',
-                'help' => 'メーラーバックエンドがSMTPかつSMTP-AUTH使用時のみ指定',
-                'required' => false,
-            ))
-            ->addEventListener(FormEvents::POST_SUBMIT, function ($event) use($app)  {
+            ])
+            ->addEventListener(FormEvents::POST_SUBMIT, function ($event) {
                 $form = $event->getForm();
                 $data = $form->getData();
 
                 $ips = preg_split("/\R/", $data['admin_allow_hosts'], null, PREG_SPLIT_NO_EMPTY);
 
-                foreach($ips as $ip) {
-                    $errors = $app['validator']->validateValue($ip, array(
+                foreach ($ips as $ip) {
+                    $errors = $this->validator->validate($ip, [
                             new Assert\Ip(),
-                        )
+                        ]
                     );
                     if ($errors->count() != 0) {
-                        $form['admin_allow_hosts']->addError(new FormError($ip . 'はIPv4アドレスではありません。'));
+                        $form['admin_allow_hosts']->addError(new FormError(trans('install.ip_is_invalid', ['%ip%' => $ip])));
                     }
                 }
             })
@@ -172,7 +162,7 @@ class Step3Type extends AbstractType
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'install_step3';
     }

@@ -1,41 +1,54 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
+use Eccube\Entity\Category;
+use Eccube\Entity\Master\ProductStatus;
+use Eccube\Entity\ProductStock;
+use Eccube\Form\Type\Master\CategoryType as MasterCategoryType;
+use Eccube\Form\Type\Master\ProductStatusType;
+use Eccube\Repository\CategoryRepository;
+use Eccube\Repository\Master\ProductStatusRepository;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\DateType;
+use Symfony\Component\Form\Extension\Core\Type\DateTimeType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Validator\Constraints as Assert;
 
 class SearchProductType extends AbstractType
 {
-    public $app;
+    /**
+     * @var ProductStatusRepository
+     */
+    protected $productStatusRepository;
 
-    public function __construct(\Silex\Application $app)
+    /**
+     * @var CategoryRepository
+     */
+    protected $categoryRepository;
+
+    /**
+     * SearchProductType constructor.
+     *
+     * @param ProductStatusRepository $productStatusRepository
+     * @param CategoryRepository $categoryRepository
+     */
+    public function __construct(ProductStatusRepository $productStatusRepository, CategoryRepository $categoryRepository)
     {
-        $this->app = $app;
+        $this->productStatusRepository = $productStatusRepository;
+        $this->categoryRepository = $categoryRepository;
     }
 
     /**
@@ -43,23 +56,35 @@ class SearchProductType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
+<<<<<<< HEAD
         $app = $this->app;
 
         $Categories = $this->app['eccube.repository.category']->getList(null, true);
 
+=======
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $builder
-            ->add('id', 'text', array(
-                'label' => '商品ID',
+            ->add('id', TextType::class, [
+                'label' => 'admin.product.multi_search_label',
                 'required' => false,
-            ))
-            /*
-            ->add('code', 'text', array(
-                'label' => '商品コード',
+            ])
+            ->add('category_id', MasterCategoryType::class, [
+                'choice_label' => 'NameWithLevel',
+                'label' => 'admin.product.category',
+                'placeholder' => 'common.select__all_products',
                 'required' => false,
-            ))
-            ->add('name', 'text', array(
-                'label' => '商品名',
+                'multiple' => false,
+                'expanded' => false,
+                'choices' => $this->categoryRepository->getList(null, true),
+                'choice_value' => function (Category $Category = null) {
+                    return $Category ? $Category->getId() : null;
+                },
+            ])
+            ->add('status', ProductStatusType::class, [
+                'label' => 'admin.product.display_status',
+                'multiple' => true,
                 'required' => false,
+<<<<<<< HEAD
             ))
              */
             ->add('category_id', 'entity', array(
@@ -73,50 +98,130 @@ class SearchProductType extends AbstractType
             ->add('status', 'disp', array(
                 'label' => '種別',
                 'multiple'=> true,
-                'required' => false,
-            ))
-            ->add('create_date_start', 'date', array(
-                'label' => '登録日(FROM)',
-                'required' => false,
-                'input' => 'datetime',
-                'widget' => 'single_text',
-                'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-            ))
-            ->add('create_date_end', 'date', array(
-                'label' => '登録日(TO)',
-                'required' => false,
-                'input' => 'datetime',
-                'widget' => 'single_text',
-                'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-            ))
-            ->add('update_date_start', 'date', array(
-                'label' => '更新日(FROM)',
+=======
+                'expanded' => true,
+                'data' => $this->productStatusRepository->findBy(['id' => [
+                    ProductStatus::DISPLAY_SHOW,
+                    ProductStatus::DISPLAY_HIDE,
+                ]]),
+            ])
+            ->add('stock', ChoiceType::class, [
+                'label' => 'admin.product.stock',
+                'choices' => [
+                    'admin.product.stock__in_stock' => ProductStock::IN_STOCK,
+                    'admin.product.stock__out_of_stock' => ProductStock::OUT_OF_STOCK,
+                ],
+                'expanded' => true,
+                'multiple' => true,
+            ])
+            ->add('create_date_start', DateType::class, [
+                'label' => 'admin.common.create_date__start',
                 'required' => false,
                 'input' => 'datetime',
                 'widget' => 'single_text',
                 'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-            ))
-            ->add('update_date_end', 'date', array(
-                'label' => '更新日(TO)',
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_create_date_start',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('create_datetime_start', DateTimeType::class, [
+                'label' => 'admin.common.create_date__start',
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd HH:mm:ss',
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_create_datetime_start',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('create_date_end', DateType::class, [
+                'label' => 'admin.common.create_date__end',
                 'required' => false,
                 'input' => 'datetime',
                 'widget' => 'single_text',
                 'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-            ))
-            ->add('link_status', 'hidden', array(
-                'mapped' => false,
-            ))
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_create_date_end',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('create_datetime_end', DateTimeType::class, [
+                'label' => 'admin.common.create_date__end',
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd HH:mm:ss',
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_create_datetime_end',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('update_date_start', DateType::class, [
+                'label' => 'admin.common.update_date__start',
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd',
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_update_date_start',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('update_datetime_start', DateTimeType::class, [
+                'label' => 'admin.common.update_date__start',
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd HH:mm:ss',
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_update_datetime_start',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('update_date_end', DateType::class, [
+                'label' => 'admin.common.update_date__end',
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd',
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_update_date_end',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
+            ->add('update_datetime_end', DateTimeType::class, [
+                'label' => 'admin.common.update_date__end',
+                'required' => false,
+                'input' => 'datetime',
+                'widget' => 'single_text',
+                'format' => 'yyyy-MM-dd HH:mm:ss',
+                'attr' => [
+                    'class' => 'datetimepicker-input',
+                    'data-target' => '#'.$this->getBlockPrefix().'_update_datetime_end',
+                    'data-toggle' => 'datetimepicker',
+                ],
+            ])
         ;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'admin_search_product';
     }

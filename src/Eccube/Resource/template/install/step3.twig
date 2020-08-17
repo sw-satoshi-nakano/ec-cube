@@ -1,23 +1,12 @@
 {#
 This file is part of EC-CUBE
 
-Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
 
-http://www.lockon.co.jp/
+http://www.ec-cube.co.jp/
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
 #}
 {% extends 'frame.twig' %}
 
@@ -28,7 +17,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
     <div class="form-group{% if not valid %} has-error{% endif %}">
         <label>{{ label }}
             {% if required %}<span class="required">*</span>{% endif %}
-            {% if help %}<br><span class="small">{{ help }}</span>{% endif %}
         </label>
         {{ form_widget(form) }}
         {{ form_errors(form) }}
@@ -47,7 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
         <div class="main_inner">
             <div class="main_content">
                 <div class="page-header">
-                    <h1>サイトの設定</h1>
+                    <h1>{{ 'install.site_configuration'|trans }}</h1>
                 </div>
                 <div class="container-fluid">
                     <div class="row">
@@ -59,37 +47,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
                                 {{ form_row(form.login_id) }}
                                 {{ form_row(form.login_pass) }}
 
-                                <h2>セキュリティの設定</h2>
-                                {{ form_row(form.admin_dir , {attr : {placeholder: 'セキュリティのため推測されにくいディレクトリ名を入力して下さい'}}) }}
-                                {% if app.request.secure %}
-                                    {{ form_row(form.admin_force_ssl) }}
+                                <h2>{{ 'install.security_configuration'|trans}}</h2>
+                                {{ form_row(form.admin_dir , {attr : { placeholder: 'install.directory_name_notice'|trans }}) }}
+                                {% if request.secure %}
+                                    {{ form_row(form.admin_force_ssl , {attr : {'checked': 'checked'}}) }}
                                 {% else %}
-                                    <span class="text-danger">httpsからの接続でなければSSL制限を設定できません。</span>
+                                    <span class="text-danger">{{ 'install.https_only_notice'|trans }}</span>
                                     {{ form_row(form.admin_force_ssl , {attr : {disabled: 'disabled', 'value': null}}) }}
                                 {% endif %}
                                 {{ form_row(form.admin_allow_hosts , {attr : {rows: '5'}}) }}
 
-                                <div class="accordion">
-                                    <a href="#" class="toggle">&gt; オプションを表示</a>
-                                    <div class="accpanel">
-
-                                        <h2>メールの設定</h2>
-                                        {{ form_row(form.mail_backend) }}
-                                        {{ form_row(form.smtp_host) }}
-                                        {{ form_row(form.smtp_port) }}
-                                        {{ form_row(form.smtp_username) }}
-                                        {{ form_row(form.smtp_password) }}
-
-                                        <h2>ロードバランサー、プロキシサーバの設定</h2>
-                                        {{ form_row(form.trusted_proxies_connection_only) }}
-                                        {{ form_row(form.trusted_proxies, {attr: {placeholder: '例）192.168.10.0/24'}}) }}
-
-                                    </div>
-                                </div>
+                                <h2>{{ 'install.mail_configuration'|trans }}</h2>
+                                {{ form_row(form.smtp_host) }}
+                                {{ form_row(form.smtp_port) }}
+                                {{ form_row(form.smtp_username) }}
+                                {{ form_row(form.smtp_password) }}
 
                                 <ul class="btn_area">
-                                    <li><button type="submit" class="btn btn-primary btn-block btn-lg">次へ進む</button></li>
-                                    <li><a href="{{ path('install_step2') }}" class="btn btn-link btn-block btn-lg">前に戻る</a></li>
+                                    <li><button type="submit" class="btn btn-primary btn-block btn-lg">{{ 'install.next'|trans }}</button></li>
+                                    <li><a href="{{ path('install_step2') }}" class="btn btn-link btn-block btn-lg">{{ 'install.back'|trans }}</a></li>
                                 </ul>
                             </form>
                         </div>

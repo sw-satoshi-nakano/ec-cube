@@ -1,20 +1,43 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Doctrine\Common\CsvDataFixtures;
 
 use Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture;
 use Eccube\Tests\EccubeTestCase;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
+use Eccube\Doctrine\Common\CsvDataFixtures\Loader;
 
 class LoaderTest extends EccubeTestCase
 {
+    /**
+     * @var string
+     */
     protected $dir;
+
+    /**
+     * @var Loader
+     */
     protected $loader;
 
-    public function setUp() {
+    /**
+     * {@inheritdoc}
+     */
+    public function setUp()
+    {
         parent::setUp();
-        $this->loader = new \Eccube\Doctrine\Common\CsvDataFixtures\Loader();
+        $this->loader = new Loader();
         $this->dir = __DIR__.'/../../../../../Fixtures/import_csv';
     }
 
@@ -25,7 +48,7 @@ class LoaderTest extends EccubeTestCase
 
         $fixtures = $this->loader->getFixtures();
 
-        $this->assertInstanceOf('Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture', $fixtures[0]);
+        $this->assertInstanceOf(CsvFixture::class, $fixtures[0]);
 
         $this->expected = 2;
         $this->actual = count($fixtures);
@@ -41,7 +64,7 @@ class LoaderTest extends EccubeTestCase
         $fixtures = $this->loader->loadFromIterator($finder->getIterator());
 
         $this->assertTrue(is_array($fixtures));
-        $this->assertInstanceOf('Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture', $fixtures[0]);
+        $this->assertInstanceOf(CsvFixture::class, $fixtures[0]);
 
         $this->expected = iterator_count($finder->getIterator());
         $this->actual = count($fixtures);
@@ -58,7 +81,7 @@ class LoaderTest extends EccubeTestCase
         $fixtures = $this->loader->loadFromDirectory($this->dir);
 
         $this->assertTrue(is_array($fixtures));
-        $this->assertInstanceOf('Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture', $fixtures[0]);
+        $this->assertInstanceOf(CsvFixture::class, $fixtures[0]);
 
         $this->expected = iterator_count($finder->getIterator());
         $this->actual = count($fixtures);

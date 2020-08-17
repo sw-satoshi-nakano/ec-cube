@@ -1,24 +1,54 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Doctrine\Common\CsvDataFixtures\Executor;
 
 use Eccube\Doctrine\Common\CsvDataFixtures\CsvFixture;
 use Eccube\Tests\EccubeTestCase;
+use Eccube\Repository\Master\JobRepository;
+use Eccube\Doctrine\Common\CsvDataFixtures\Executor\DbalExecutor;
 
 class DbalExecutorTest extends EccubeTestCase
 {
-
+    /**
+     * @var \SplFileObject
+     */
     protected $file;
+
+    /**
+     * @var CsvFixture[]
+     */
     protected $fixtures;
 
+    /**
+     * @var JobRepository
+     */
+    protected $jobRepository;
+
+    /**
+     * {@inheritdoc}
+     */
     public function setUp()
     {
         parent::setUp();
-        $Jobs = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Job')->findAll();
+
+        $this->jobRepository = $this->container->get(JobRepository::class);
+
+        $Jobs = $this->jobRepository->findAll();
         foreach ($Jobs as $Job) {
-            $this->app['orm.em']->remove($Job);
+            $this->entityManager->remove($Job);
         }
-        $this->app['orm.em']->flush();
+        $this->entityManager->flush();
 
         $this->file = new \SplFileObject(
             __DIR__.'/../../../../../../Fixtures/import_csv/mtb_job.csv'
@@ -28,7 +58,7 @@ class DbalExecutorTest extends EccubeTestCase
 
     public function testExecute()
     {
-        $Executor = new \Eccube\Doctrine\Common\CsvDataFixtures\Executor\DbalExecutor($this->app['orm.em']);
+        $Executor = new DbalExecutor($this->entityManager);
         $Executor->execute($this->fixtures);
 
         $this->file->setFlags(\SplFileObject::READ_CSV | \SplFileObject::READ_AHEAD | \SplFileObject::SKIP_EMPTY);
@@ -37,21 +67,21 @@ class DbalExecutorTest extends EccubeTestCase
         $this->file->next();
 
         // ファイルのデータ行を取得しておく
-        $rows = array();
-        while(!$this->file->eof()) {
+        $rows = [];
+        while (!$this->file->eof()) {
             $rows[] = $this->file->current();
             $this->file->next();
         }
 
         $this->file->rewind();
-        $Jobs = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Job')->findAll();
+        $Jobs = $this->jobRepository->findAll();
 
         $this->expected = count($rows);
         $this->actual = count($Jobs);
         $this->verify('行数は一致するか？');
         foreach ($Jobs as $key => $Job) {
             $this->expected = $rows[$key][0].', '.$rows[$key][1].', '.$rows[$key][2];
-            $this->actual = $Job->getId().', '.$Job->getName().', '.$Job->getRank();
+            $this->actual = $Job->getId().', '.$Job->getName().', '.$Job->getSortNo();
             $this->verify($key.'行目のデータは一致するか？');
         }
     }

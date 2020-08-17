@@ -1,82 +1,73 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller\Admin\Setting\System;
 
-use Eccube\Application;
 use Eccube\Common\Constant;
+use Eccube\Service\SystemService;
+use Symfony\Component\Routing\Annotation\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class SystemController
 {
+    /**
+     * @var SystemService
+     */
+    protected $systemService;
 
-    private $maintitle;
-
-    private $subtitle;
-
-    public function __construct()
+    /**
+     * SystemController constructor.
+     *
+     * @param SystemService $systemService
+     */
+    public function __construct(SystemService $systemService)
     {
+        $this->systemService = $systemService;
     }
 
-    public function index(Application $app)
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/system", name="admin_setting_system_system")
+     * @Template("@admin/Setting/System/system.twig")
+     */
+    public function index(Request $request)
     {
-        switch ($app['request']->get('mode')) {
-            case 'info':
-                ob_start();
-                phpinfo();
-                $phpinfo = ob_get_contents();
-                ob_end_clean();
+        $info = [];
+        $info[] = ['title' => trans('admin.setting.system.system.eccube'), 'value' => Constant::VERSION];
+        $info[] = ['title' => trans('admin.setting.system.system.server_os'), 'value' => php_uname()];
+        $info[] = ['title' => trans('admin.setting.system.system.database_server'), 'value' => $this->systemService->getDbversion()];
+        $info[] = ['title' => trans('admin.setting.system.system.web_server'), 'value' => $request->server->get('SERVER_SOFTWARE')];
 
-                return $phpinfo;
+        $value = phpversion().' ('.implode(', ', get_loaded_extensions()).')';
+        $info[] = ['title' => trans('admin.setting.system.system.php'), 'value' => $value];
+        $info[] = ['title' => trans('admin.setting.system.system.user_agent'), 'value' => $request->headers->get('User-Agent')];
 
-               break;
-            default:
-                break;
-        }
-
-        $this->arrSystemInfo = $this->getSystemInfo($app);
-
-        return $app->render('Setting/System/system.twig', array(
-            'arrSystemInfo' => $this->arrSystemInfo,
-        ));
+        return [
+            'info' => $info,
+        ];
     }
 
-     public function getSystemInfo(Application $app)
-     {
-        $system = $app['eccube.service.system'];
-        $server = $app['request'];
+    /**
+     * @Route("/%eccube_admin_route%/setting/system/system/phpinfo", name="admin_setting_system_system_phpinfo")
+     */
+    public function phpinfo(Request $request)
+    {
+        ob_start();
+        phpinfo();
+        $phpinfo = ob_get_contents();
+        ob_end_clean();
 
-        $arrSystemInfo = array(
-            array('title' => 'EC-CUBE',     'value' => Constant::VERSION),
-            array('title' => 'サーバーOS',    'value' => php_uname()),
-            array('title' => 'DBサーバー',    'value' => $system->getDbversion()),
-            array('title' => 'WEBサーバー',   'value' => $server->server->get("SERVER_SOFTWARE")),
-        );
-
-        $value = phpversion() . ' (' . implode(', ', get_loaded_extensions()) . ')';
-        $arrSystemInfo[] = array('title' => 'PHP', 'value' => $value);
-        $arrSystemInfo[] = array('title' => 'HTTPユーザーエージェント', 'value' => $server->headers->get('User-Agent'));
-
-        return $arrSystemInfo;
-     }
+        return new Response($phpinfo);
+    }
 }

@@ -1,26 +1,15 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Event;
 
@@ -29,11 +18,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Class TemplateEvent
- * @package Eccube\Event
  */
 class TemplateEvent extends Event
 {
-
     /**
      * @var string
      */
@@ -55,6 +42,16 @@ class TemplateEvent extends Event
     private $response;
 
     /**
+     * @var array
+     */
+    private $assets = [];
+
+    /**
+     * @var array
+     */
+    private $snippets = [];
+
+    /**
      * TemplateEvent constructor.
      *
      * @param string $view
@@ -62,7 +59,7 @@ class TemplateEvent extends Event
      * @param array $parameters
      * @param Response|null $response
      */
-    public function __construct($view, $source, array $parameters = array(), Response $response = null)
+    public function __construct($view, $source, array $parameters = [], Response $response = null)
     {
         $this->view = $view;
         $this->source = $source;
@@ -103,6 +100,35 @@ class TemplateEvent extends Event
     }
 
     /**
+     * @param $key
+     *
+     * @return mixed
+     */
+    public function getParameter($key)
+    {
+        return $this->parameters[$key];
+    }
+
+    /**
+     * @param $key
+     * @param $value
+     */
+    public function setParameter($key, $value)
+    {
+        $this->parameters[$key] = $value;
+    }
+
+    /**
+     * @param $key
+     *
+     * @return bool
+     */
+    public function hasParameter($key)
+    {
+        return isset($this->parameters[$key]);
+    }
+
+    /**
      * @return array
      */
     public function getParameters()
@@ -134,4 +160,42 @@ class TemplateEvent extends Event
         $this->response = $response;
     }
 
+    /**
+     * アセットを追加する
+     *
+     * ここで追加したコードは, <head></head>内に出力される
+     * javascriptの読み込みやcssの読み込みに利用する.
+     *
+     * @param $asset
+     * @param bool $include twigファイルとしてincludeするかどうか
+     *
+     * @return $this
+     */
+    public function addAsset($asset, $include = true)
+    {
+        $this->assets[$asset] = $include;
+
+        $this->setParameter('plugin_assets', $this->assets);
+
+        return $this;
+    }
+
+    /**
+     * スニペットを追加する.
+     *
+     * ここで追加したコードは, </body>タグ直前に出力される
+     *
+     * @param $snippet
+     * @param bool $include twigファイルとしてincludeするかどうか
+     *
+     * @return $this
+     */
+    public function addSnippet($snippet, $include = true)
+    {
+        $this->snippets[$snippet] = $include;
+
+        $this->setParameter('plugin_snippets', $this->snippets);
+
+        return $this;
+    }
 }

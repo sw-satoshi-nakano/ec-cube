@@ -1,61 +1,76 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Web;
 
-use Eccube\Common\Constant;
 use Eccube\Entity\Category;
 
 class SearchProductControllerTest extends AbstractWebTestCase
 {
+    /**
+     * @var \Eccube\Repository\CategoryRepository
+     */
+    protected $categoryRepository;
+
     public function setUp()
     {
         parent::setUp();
         $this->remove();
         $this->createCategories();
+        $this->categoryRepository = $this->container->get(\Eccube\Repository\CategoryRepository::class);
     }
 
     public function createCategories()
     {
-        $categories = array(
-            array('name' => '親1', 'level' => 1, 'rank' => 1,
-                'child' => array(
-                    array('name' => '子1', 'level' => 2, 'rank' => 4,
-                        'child' => array(
-                            array('name' => '孫1', 'level' => 3, 'rank' => 9)
-                        ),
-                    ),
-                ),
-            ),
-            array('name' => '親2', 'level' => 1, 'rank' => 2,
-                'child' => array(
-                    array('name' => '子2-0', 'level' => 2, 'rank' => 5,
-                        'child' => array(
-                            array('name' => '孫2', 'level' => 3, 'rank' => 10)
-                        )
-                    ),
-                    array('name' => '子2-1', 'level' => 2, 'rank' => 6),
-                    array('name' => '子2-2', 'level' => 2, 'rank' => 7)
-                ),
-            ),
-            array('name' => '親3', 'level' => 1, 'rank' => 3,
-                'child' => array(
-                    array('name' => '子3', 'level' => 2, 'rank' => 8,
-                        'child' => array(
-                            array('name' => '孫3', 'level' => 3, 'rank' => 11)
-                        )
-                    )
-                ),
-            ),
-        );
+        $categories = [
+            ['name' => '親1', 'hierarchy' => 1, 'sort_no' => 1,
+                'child' => [
+                    ['name' => '子1', 'hierarchy' => 2, 'sort_no' => 4,
+                        'child' => [
+                            ['name' => '孫1', 'hierarchy' => 3, 'sort_no' => 9],
+                        ],
+                    ],
+                ],
+            ],
+            ['name' => '親2', 'hierarchy' => 1, 'sort_no' => 2,
+                'child' => [
+                    ['name' => '子2-0', 'hierarchy' => 2, 'sort_no' => 5,
+                        'child' => [
+                            ['name' => '孫2', 'hierarchy' => 3, 'sort_no' => 10],
+                        ],
+                    ],
+                    ['name' => '子2-1', 'hierarchy' => 2, 'sort_no' => 6],
+                    ['name' => '子2-2', 'hierarchy' => 2, 'sort_no' => 7],
+                ],
+            ],
+            ['name' => '親3', 'hierarchy' => 1, 'sort_no' => 3,
+                'child' => [
+                    ['name' => '子3', 'hierarchy' => 2, 'sort_no' => 8,
+                        'child' => [
+                            ['name' => '孫3', 'hierarchy' => 3, 'sort_no' => 11],
+                        ],
+                    ],
+                ],
+            ],
+        ];
 
         foreach ($categories as $category_array) {
             $Category = new Category();
             $Category->setPropertiesFromArray($category_array);
-            $Category->setDelFlg(Constant::DISABLED);
             $Category->setCreateDate(new \DateTime());
             $Category->setUpdateDate(new \DateTime());
-            $this->app['orm.em']->persist($Category);
-            $this->app['orm.em']->flush();
+            $this->entityManager->persist($Category);
+            $this->entityManager->flush();
 
             if (!array_key_exists('child', $category_array)) {
                 continue;
@@ -64,11 +79,10 @@ class SearchProductControllerTest extends AbstractWebTestCase
                 $Child = new Category();
                 $Child->setPropertiesFromArray($child_array);
                 $Child->setParent($Category);
-                $Child->setDelFlg(Constant::DISABLED);
                 $Child->setCreateDate(new \DateTime());
                 $Child->setUpdateDate(new \DateTime());
-                $this->app['orm.em']->persist($Child);
-                $this->app['orm.em']->flush();
+                $this->entityManager->persist($Child);
+                $this->entityManager->flush();
 
                 $Category->addChild($Child);
 
@@ -79,11 +93,10 @@ class SearchProductControllerTest extends AbstractWebTestCase
                     $Grandson = new Category();
                     $Grandson->setPropertiesFromArray($grandson_array);
                     $Grandson->setParent($Child);
-                    $Grandson->setDelFlg(Constant::DISABLED);
                     $Grandson->setCreateDate(new \DateTime());
                     $Grandson->setUpdateDate(new \DateTime());
-                    $this->app['orm.em']->persist($Grandson);
-                    $this->app['orm.em']->flush();
+                    $this->entityManager->persist($Grandson);
+                    $this->entityManager->flush();
                     $Child->addChild($Grandson);
                 }
             }
@@ -93,37 +106,32 @@ class SearchProductControllerTest extends AbstractWebTestCase
     /**
      * 既存のデータを論理削除しておく.
      */
-    public function remove() {
-        $Categories = $this->app['eccube.repository.category']->findAll();
-        foreach ($Categories as $Category) {
-            $Category->setDelFlg(Constant::ENABLED);
-            $this->app['orm.em']->merge($Category);
-        }
-        $this->app['orm.em']->flush();
+    public function remove()
+    {
+        $this->deleteAllRows([
+            'dtb_product_category',
+            'dtb_category',
+        ]);
     }
 
     public function testRoutingSearchProduct()
     {
-        $this->client->request('GET',
-            $this->app->url('block_search_product')
-        );
+        $this->client->request('GET', $this->generateUrl('block_search_product'));
         $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
 
     public function testCategory()
     {
         // Give
-        $Category = $this->app['eccube.repository.category']->findOneBy(array('name' => '孫1'));
+        $Category = $this->categoryRepository->findOneBy(['name' => '孫1']);
 
         // When
-        $crawler = $this->client->request('GET',
-            $this->app->url('block_search_product')
-        );
+        $crawler = $this->client->request('GET', $this->generateUrl('block_search_product'));
 
         // Then
         $this->assertTrue($this->client->getResponse()->isSuccessful());
 
-        $categoryNameLastElement = $crawler->filter('.search select#category_id option')->last()->text();
+        $categoryNameLastElement = $crawler->filter('.category_id option')->last()->text();
 
         $this->expected = $Category->getNameWithLevel();
         $this->actual = $categoryNameLastElement;

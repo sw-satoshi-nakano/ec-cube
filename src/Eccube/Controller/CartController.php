@@ -1,400 +1,267 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Controller;
 
-use Eccube\Application;
+use Eccube\Entity\BaseInfo;
+use Eccube\Entity\ProductClass;
 use Eccube\Event\EccubeEvents;
 use Eccube\Event\EventArgs;
-use Eccube\Exception\CartException;
+use Eccube\Repository\BaseInfoRepository;
+use Eccube\Repository\ProductClassRepository;
+use Eccube\Service\CartService;
+use Eccube\Service\PurchaseFlow\PurchaseContext;
+use Eccube\Service\PurchaseFlow\PurchaseFlow;
+use Eccube\Service\PurchaseFlow\PurchaseFlowResult;
+use Eccube\Service\OrderHelper;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Template;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
 
 class CartController extends AbstractController
 {
     /**
+     * @var ProductClassRepository
+     */
+    protected $productClassRepository;
+
+    /**
+     * @var CartService
+     */
+    protected $cartService;
+
+    /**
+     * @var PurchaseFlow
+     */
+    protected $purchaseFlow;
+
+    /**
+     * @var BaseInfo
+     */
+    protected $baseInfo;
+
+    /**
+     * CartController constructor.
+     *
+     * @param ProductClassRepository $productClassRepository
+     * @param CartService $cartService
+     * @param PurchaseFlow $cartPurchaseFlow
+     * @param BaseInfoRepository $baseInfoRepository
+     */
+    public function __construct(
+        ProductClassRepository $productClassRepository,
+        CartService $cartService,
+        PurchaseFlow $cartPurchaseFlow,
+        BaseInfoRepository $baseInfoRepository
+    ) {
+        $this->productClassRepository = $productClassRepository;
+        $this->cartService = $cartService;
+        $this->purchaseFlow = $cartPurchaseFlow;
+        $this->baseInfo = $baseInfoRepository->get();
+    }
+
+    /**
      * カート画面.
      *
-     * @param Application $app
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @Route("/cart", name="cart")
+     * @Template("Cart/index.twig")
      */
-    public function index(Application $app, Request $request)
+    public function index(Request $request)
     {
-        $Cart = $app['eccube.service.cart']->getCart();
+        // カートを取得して明細の正規化を実行
+        $Carts = $this->cartService->getCarts();
+        $this->execPurchaseFlow($Carts);
 
-        // FRONT_CART_INDEX_INITIALIZE
-        $event = new EventArgs(
-            array(),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_INDEX_INITIALIZE, $event);
+        // TODO itemHolderから取得できるように
+        $least = [];
+        $quantity = [];
+        $isDeliveryFree = [];
+        $totalPrice = 0;
+        $totalQuantity = 0;
 
-        /* @var $BaseInfo \Eccube\Entity\BaseInfo */
-        /* @var $Cart \Eccube\Entity\Cart */
-        $BaseInfo = $app['eccube.repository.base_info']->get();
+        foreach ($Carts as $Cart) {
+            $quantity[$Cart->getCartKey()] = 0;
+            $isDeliveryFree[$Cart->getCartKey()] = false;
 
-        $isDeliveryFree = false;
-        $least = 0;
-        $quantity = 0;
-        if ($BaseInfo->getDeliveryFreeAmount()) {
-            if ($BaseInfo->getDeliveryFreeAmount() <= $Cart->getTotalPrice()) {
-                // 送料無料（金額）を超えている
-                $isDeliveryFree = true;
-            } else {
-                $least = $BaseInfo->getDeliveryFreeAmount() - $Cart->getTotalPrice();
+            if ($this->baseInfo->getDeliveryFreeQuantity()) {
+                if ($this->baseInfo->getDeliveryFreeQuantity() > $Cart->getQuantity()) {
+                    $quantity[$Cart->getCartKey()] = $this->baseInfo->getDeliveryFreeQuantity() - $Cart->getQuantity();
+                } else {
+                    $isDeliveryFree[$Cart->getCartKey()] = true;
+                }
             }
-        }
 
-        if ($BaseInfo->getDeliveryFreeQuantity()) {
-            if ($BaseInfo->getDeliveryFreeQuantity() <= $Cart->getTotalQuantity()) {
-                // 送料無料（個数）を超えている
-                $isDeliveryFree = true;
-            } else {
-                $quantity = $BaseInfo->getDeliveryFreeQuantity() - $Cart->getTotalQuantity();
+            if ($this->baseInfo->getDeliveryFreeAmount()) {
+                if (!$isDeliveryFree[$Cart->getCartKey()] && $this->baseInfo->getDeliveryFreeAmount() <= $Cart->getTotalPrice()) {
+                    $isDeliveryFree[$Cart->getCartKey()] = true;
+                } else {
+                    $least[$Cart->getCartKey()] = $this->baseInfo->getDeliveryFreeAmount() - $Cart->getTotalPrice();
+                }
             }
+
+            $totalPrice += $Cart->getTotalPrice();
+            $totalQuantity += $Cart->getQuantity();
         }
 
-        // FRONT_CART_INDEX_COMPLETE
-        $event = new EventArgs(
-            array(),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_INDEX_COMPLETE, $event);
+        // カートが分割された時のセッション情報を削除
+        $request->getSession()->remove(OrderHelper::SESSION_CART_DIVIDE_FLAG);
 
-        if ($event->hasResponse()) {
-            return $event->getResponse();
-        }
-
-        return $app->render(
-            'Cart/index.twig',
-            array(
-                'Cart' => $Cart,
-                'least' => $least,
-                'quantity' => $quantity,
-                'is_delivery_free' => $isDeliveryFree,
-            )
-        );
+        return [
+            'totalPrice' => $totalPrice,
+            'totalQuantity' => $totalQuantity,
+            // 空のカートを削除し取得し直す
+            'Carts' => $this->cartService->getCarts(true),
+            'least' => $least,
+            'quantity' => $quantity,
+            'is_delivery_free' => $isDeliveryFree,
+        ];
     }
 
     /**
-     * カートに商品を追加する.
+     * @param $Carts
      *
-     * @param Application $app
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
+     * @return \Symfony\Component\HttpFoundation\RedirectResponse
      */
-    public function add(Application $app, Request $request)
+    protected function execPurchaseFlow($Carts)
     {
-        $productClassId = $request->get('product_class_id');
-        $quantity = $request->request->has('quantity') ? $request->get('quantity') : 1;
+        /** @var PurchaseFlowResult[] $flowResults */
+        $flowResults = array_map(function ($Cart) {
+            $purchaseContext = new PurchaseContext($Cart, $this->getUser());
 
-        // FRONT_CART_ADD_INITIALIZE
-        $event = new EventArgs(
-            array(
-                'productClassId' => $productClassId,
-                'quantity' => $quantity,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_ADD_INITIALIZE, $event);
+            return $this->purchaseFlow->validate($Cart, $purchaseContext);
+        }, $Carts);
 
-        try {
-
-            $productClassId = $event->getArgument('productClassId');
-            $quantity = $event->getArgument('quantity');
-
-            log_info('カート追加処理開始', array('product_class_id' => $productClassId, 'quantity' => $quantity));
-
-            $app['eccube.service.cart']->addProduct($productClassId, $quantity)->save();
-
-            log_info('カート追加処理完了', array('product_class_id' => $productClassId, 'quantity' => $quantity));
-
-            // FRONT_CART_ADD_COMPLETE
-            $event = new EventArgs(
-                array(
-                    'productClassId' => $productClassId,
-                    'quantity' => $quantity,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_ADD_COMPLETE, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
+        // 復旧不可のエラーが発生した場合はカートをクリアして再描画
+        $hasError = false;
+        foreach ($flowResults as $result) {
+            if ($result->hasError()) {
+                $hasError = true;
+                foreach ($result->getErrors() as $error) {
+                    $this->addRequestError($error->getMessage());
+                }
             }
+        }
+        if ($hasError) {
+            $this->cartService->clear();
 
-        } catch (CartException $e) {
-
-            log_info('カート追加エラー', array($e->getMessage()));
-
-            // FRONT_CART_ADD_EXCEPTION
-            $event = new EventArgs(
-                array(
-                    'exception' => $e,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_ADD_EXCEPTION, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
-            }
-
-            $app->addRequestError($e->getMessage());
+            return $this->redirectToRoute('cart');
         }
 
-        return $app->redirect($app->url('cart'));
+        $this->cartService->save();
+
+        foreach ($flowResults as $index => $result) {
+            foreach ($result->getWarning() as $warning) {
+                if ($Carts[$index]->getItems()->count() > 0) {
+                    $cart_key = $Carts[$index]->getCartKey();
+                    $this->addRequestError($warning->getMessage(), "front.cart.${cart_key}");
+                } else {
+                    // キーが存在しない場合はグローバルにエラーを表示する
+                    $this->addRequestError($warning->getMessage());
+                }
+            }
+        }
     }
 
     /**
-     * カートに入っている商品の個数を1増やす.
+     * カート明細の加算/減算/削除を行う.
      *
-     * @param Application $app
-     * @param Request $request
-     * @param $productClassId
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
+     * - 加算
+     *      - 明細の個数を1増やす
+     * - 減算
+     *      - 明細の個数を1減らす
+     *      - 個数が0になる場合は、明細を削除する
+     * - 削除
+     *      - 明細を削除する
+     *
+     * @Route(
+     *     path="/cart/{operation}/{productClassId}",
+     *     name="cart_handle_item",
+     *     methods={"PUT"},
+     *     requirements={
+     *          "operation": "up|down|remove",
+     *          "productClassId": "\d+"
+     *     }
+     * )
      */
-    public function up(Application $app, Request $request, $productClassId)
+    public function handleCartItem($operation, $productClassId)
     {
-        $this->isTokenValid($app);
+        log_info('カート明細操作開始', ['operation' => $operation, 'product_class_id' => $productClassId]);
 
-        // FRONT_CART_UP_INITIALIZE
-        $event = new EventArgs(
-            array(
-                'productClassId' => $productClassId,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_UP_INITIALIZE, $event);
+        $this->isTokenValid();
 
-        try {
+        /** @var ProductClass $ProductClass */
+        $ProductClass = $this->productClassRepository->find($productClassId);
 
-            log_info('カート加算処理開始', array('product_class_id' => $productClassId));
+        if (is_null($ProductClass)) {
+            log_info('商品が存在しないため、カート画面へredirect', ['operation' => $operation, 'product_class_id' => $productClassId]);
 
-            $productClassId = $event->getArgument('productClassId');
-
-            $app['eccube.service.cart']->upProductQuantity($productClassId)->save();
-
-            // FRONT_CART_UP_COMPLETE
-            $event = new EventArgs(
-                array(
-                    'productClassId' => $productClassId,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_UP_COMPLETE, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
-            }
-
-            log_info('カート加算処理完了', array('product_class_id' => $productClassId));
-
-        } catch (CartException $e) {
-
-            log_info('カート加算エラー', array($e->getMessage()));
-
-            // FRONT_CART_UP_EXCEPTION
-            $event = new EventArgs(
-                array(
-                    'exception' => $e,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_UP_EXCEPTION, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
-            }
-
-            $app->addRequestError($e->getMessage());
+            return $this->redirectToRoute('cart');
         }
 
-        return $app->redirect($app->url('cart'));
-    }
-
-    /**
-     * カートに入っている商品の個数を1減らす.
-     * マイナスになる場合は, 商品をカートから削除する.
-     *
-     * @param Application $app
-     * @param Request $request
-     * @param $productClassId
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
-     */
-    public function down(Application $app, Request $request, $productClassId)
-    {
-        $this->isTokenValid($app);
-
-        // FRONT_CART_DOWN_INITIALIZE
-        $event = new EventArgs(
-            array(
-                'productClassId' => $productClassId,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_DOWN_INITIALIZE, $event);
-
-        try {
-
-            log_info('カート減算処理開始', array('product_class_id' => $productClassId));
-
-            $productClassId = $event->getArgument('productClassId');
-            $app['eccube.service.cart']->downProductQuantity($productClassId)->save();
-
-            // FRONT_CART_UP_COMPLETE
-            $event = new EventArgs(
-                array(
-                    'productClassId' => $productClassId,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_DOWN_COMPLETE, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
-            }
-
-            log_info('カート減算処理完了', array('product_class_id' => $productClassId));
-
-        } catch (CartException $e) {
-            log_info('カート減算エラー', array($e->getMessage()));
-
-            // FRONT_CART_DOWN_EXCEPTION
-            $event = new EventArgs(
-                array(
-                    'exception' => $e,
-                ),
-                $request
-            );
-            $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_DOWN_EXCEPTION, $event);
-
-            if ($event->hasResponse()) {
-                return $event->getResponse();
-            }
-
-            $app->addRequestError($e->getMessage());
+        // 明細の増減・削除
+        switch ($operation) {
+            case 'up':
+                $this->cartService->addProduct($ProductClass, 1);
+                break;
+            case 'down':
+                $this->cartService->addProduct($ProductClass, -1);
+                break;
+            case 'remove':
+                $this->cartService->removeProduct($ProductClass);
+                break;
         }
 
-        return $app->redirect($app->url('cart'));
-    }
+        // カートを取得して明細の正規化を実行
+        $Carts = $this->cartService->getCarts();
+        $this->execPurchaseFlow($Carts);
 
-    /**
-     * カートに入っている商品を削除する.
-     *
-     * @param Application $app
-     * @param Request $request
-     * @param $productClassId
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
-     */
-    public function remove(Application $app, Request $request, $productClassId)
-    {
-        $this->isTokenValid($app);
+        log_info('カート演算処理終了', ['operation' => $operation, 'product_class_id' => $productClassId]);
 
-        log_info('カート削除処理開始', array('product_class_id' => $productClassId));
-
-        // FRONT_CART_REMOVE_INITIALIZE
-        $event = new EventArgs(
-            array(
-                'productClassId' => $productClassId,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_REMOVE_INITIALIZE, $event);
-
-        $productClassId = $event->getArgument('productClassId');
-        $app['eccube.service.cart']->removeProduct($productClassId)->save();
-
-        log_info('カート削除処理完了', array('product_class_id' => $productClassId));
-
-        // FRONT_CART_REMOVE_COMPLETE
-        $event = new EventArgs(
-            array(
-                'productClassId' => $productClassId,
-            ),
-            $request
-        );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_REMOVE_COMPLETE, $event);
-
-        if ($event->hasResponse()) {
-            return $event->getResponse();
-        }
-
-        return $app->redirect($app->url('cart'));
-    }
-
-    /**
-     * カートに商品を個数を指定して設定する.
-     *
-     * @param Application $app
-     * @param Request $request
-     * @param $productClassId
-     * @param $quantity
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
-     * @throws CartException
-     *
-     * @deprecated since 3.0.0, to be removed in 3.1
-     */
-    public function setQuantity(Application $app, Request $request, $productClassId, $quantity)
-    {
-        $this->isTokenValid($app);
-
-        $app['eccube.service.cart']->setProductQuantity($productClassId, $quantity)->save();
-
-        return $app->redirect($app->url('cart'));
+        return $this->redirectToRoute('cart');
     }
 
     /**
      * カートをロック状態に設定し、購入確認画面へ遷移する.
      *
-     * @param Application $app
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
+     * @Route("/cart/buystep/{cart_key}", name="cart_buystep", requirements={"cart_key" = "[a-zA-Z0-9]+[_][\x20-\x7E]+"})
      */
-    public function buystep(Application $app, Request $request)
+    public function buystep(Request $request, $cart_key)
     {
+        $Carts = $this->cartService->getCart();
+        if (!is_object($Carts)) {
+            return $this->redirectToRoute('cart');
+        }
         // FRONT_CART_BUYSTEP_INITIALIZE
         $event = new EventArgs(
-            array(),
+            [],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_BUYSTEP_INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::FRONT_CART_BUYSTEP_INITIALIZE, $event);
 
-        $app['eccube.service.cart']->lock();
-        $app['eccube.service.cart']->save();
+        $this->cartService->setPrimary($cart_key);
+        $this->cartService->save();
 
         // FRONT_CART_BUYSTEP_COMPLETE
         $event = new EventArgs(
-            array(),
+            [],
             $request
         );
-        $app['eccube.event.dispatcher']->dispatch(EccubeEvents::FRONT_CART_BUYSTEP_COMPLETE, $event);
+        $this->eventDispatcher->dispatch(EccubeEvents::FRONT_CART_BUYSTEP_COMPLETE, $event);
 
         if ($event->hasResponse()) {
             return $event->getResponse();
         }
 
-        return $app->redirect($app->url('shopping'));
+        return $this->redirectToRoute('shopping');
     }
 }

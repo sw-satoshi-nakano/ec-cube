@@ -1,24 +1,14 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Doctrine\ORM\Query;
@@ -48,8 +38,6 @@ use Doctrine\ORM\Query\SqlWalker;
  *  source:
  *      日付/時刻データ型、もしくは日付/時刻を表す文字列
  *      文字列の場合はtypeが必須
- *
- * @package Eccube\Doctrine\ORM\Query
  */
 class Extract extends FunctionNode
 {
@@ -57,21 +45,21 @@ class Extract extends FunctionNode
     protected $type;
     protected $source;
 
-    protected $formats = array(
-        'YEAR'      => '%Y',
-        'MONTH'     => '%m',
-        'DAY'       => '%d',
-        'HOUR'      => '%H',
-        'MINUTE'    => '%M',
-        'SECOND'    => '%S',
-        'WEEK'      => '%W',
-    );
+    protected $formats = [
+        'YEAR' => '%Y',
+        'MONTH' => '%m',
+        'DAY' => '%d',
+        'HOUR' => '%H',
+        'MINUTE' => '%M',
+        'SECOND' => '%S',
+        'WEEK' => '%W',
+    ];
 
-    protected $dateTimeTypes = array(
+    protected $dateTimeTypes = [
         'TIMESTAMP',
         'DATE',
         'TIME',
-    );
+    ];
 
     public function parse(Parser $parser)
     {
@@ -105,10 +93,33 @@ class Extract extends FunctionNode
     public function getSql(SqlWalker $sqlWalker)
     {
         $driver = $sqlWalker->getConnection()->getDriver()->getName();
-        if ($driver == 'pdo_sqlite') {
-            return sprintf("CAST(STRFTIME('%s', %s) AS INTEGER)", $this->formats[$this->field], $this->source->dispatch($sqlWalker));
-        } else {
-            return sprintf('EXTRACT(%s FROM %s %s)', $this->field, (string)$this->type, $this->source->dispatch($sqlWalker));
+        // UTCとの時差(秒数)
+        $diff = intval(date('Z'));
+        $second = abs($diff);
+        $op = ($diff === $second) ? '+' : '-';
+
+        switch ($driver) {
+            case 'pdo_sqlite':
+                $sql = sprintf(
+                    "CAST(STRFTIME('%s', DATETIME(%s, '${op}{$second} SECONDS')) AS INTEGER)",
+                    $this->formats[$this->field],
+                    $this->source->dispatch($sqlWalker));
+                break;
+            case 'pdo_pgsql':
+                $sql = sprintf(
+                    "EXTRACT(%s FROM %s %s $op INTERVAL '$second SECONDS')",
+                    $this->field,
+                    (string) $this->type,
+                    $this->source->dispatch($sqlWalker));
+                break;
+            default:
+                $sql = sprintf(
+                    "EXTRACT(%s FROM %s %s $op INTERVAL $second SECOND)",
+                    $this->field,
+                    (string) $this->type,
+                    $this->source->dispatch($sqlWalker));
         }
+
+        return $sql;
     }
 }

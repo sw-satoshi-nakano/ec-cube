@@ -1,5 +1,16 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Command;
 
 use Eccube\Application;
@@ -10,47 +21,55 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 abstract class AbstractCommandTest extends EccubeTestCase
 {
-
     const LOOP_MAX_LIMIT = 5;
 
     /**
-     *
-     * @var Command 
+     * @var Command
      */
     protected $command = null;
 
     /**
-     *
-     * @var CommandTester 
+     * @var CommandTester
      */
     protected $tester = null;
 
     /**
      * $contentCnt
+     *
      * @var int
      */
     protected $contentCnt = 0;
 
     /**
      * $content
+     *
      * @var string
      */
     protected $content = '';
 
     /**
      * $loopCnt
+     *
      * @var int
      */
     protected $loopCnt = 0;
 
     /**
      * $loopCheckSum
+     *
      * @var int
      */
     protected $loopCheckSum = 0;
 
+    public function tearDown()
+    {
+        parent::tearDown();
+        Application::clearInstance();
+    }
+
     /**
      * $PluginCommand
+     *
      * @param Command $PluginCommand
      */
     protected function initCommand($PluginCommand)
@@ -61,6 +80,7 @@ abstract class AbstractCommandTest extends EccubeTestCase
 
     /**
      * executeTester
+     *
      * @param array $callback
      * @param array $commandArg
      */
@@ -76,7 +96,9 @@ abstract class AbstractCommandTest extends EccubeTestCase
 
     /**
      * getLastContent
+     *
      * @return string
+     *
      * @throws \Exception
      */
     protected function getLastContent()
@@ -96,13 +118,15 @@ abstract class AbstractCommandTest extends EccubeTestCase
         }
 
         if ($this->loopCnt > self::LOOP_MAX_LIMIT) {
-            throw new \Exception($this->content . ' Contents reach loop limit of ' . self::LOOP_MAX_LIMIT . ' (AbstractCommandTest::LOOP_MAX_LIMIT)');
+            throw new \Exception($this->content.' Contents reach loop limit of '.self::LOOP_MAX_LIMIT.' (AbstractCommandTest::LOOP_MAX_LIMIT)');
         }
+
         return $this->content;
     }
 
     /**
      * addCommand
+     *
      * @param Command $command
      */
     protected function addCommand($command)
@@ -115,6 +139,7 @@ abstract class AbstractCommandTest extends EccubeTestCase
 
     /**
      * mockQuestionHelper
+     *
      * @param Command $cmd
      * @param callable $mockHandler
      */
@@ -127,34 +152,47 @@ abstract class AbstractCommandTest extends EccubeTestCase
 
     /**
      * getQuestionMark
+     *
      * @param int $no
+     *
      * @return string
      */
     protected function getQuestionMark($no)
     {
-        return AbstractPluginGenerator::INPUT_OPEN . $no . AbstractPluginGenerator::INPUT_CLOSE;
+        return AbstractPluginGenerator::INPUT_OPEN.$no.AbstractPluginGenerator::INPUT_CLOSE;
     }
 
     public function createApplication()
     {
-        $app = Application::getInstance();
+        $app = Application::getInstance([
+            'eccube.autoloader' => $GLOBALS['eccube.autoloader'],
+        ]);
         $app['debug'] = true;
         $app->initialize();
-
         // Console
-        $app->register(
-            new \Knp\Provider\ConsoleServiceProvider(), array(
-            'console.name' => 'EC-CUBE',
-            'console.version' => \Eccube\Common\Constant::VERSION,
-            'console.project_directory' => __DIR__ . "/.."
-            )
-        );
+        if (!$app->offsetExists('console')) {
+            $app->register(
+                new \Knp\Provider\ConsoleServiceProvider(), [
+                    'console.name' => 'EC-CUBE',
+                    'console.version' => \Eccube\Common\Constant::VERSION,
+                    'console.project_directory' => __DIR__.'/..',
+                ]
+            );
+            $app->extend('console.command.twig.debug', function ($command, $app) {
+                return new \Symfony\Bridge\Twig\Command\DebugCommand($app['twig']);
+            });
+
+            $app->extend('console.command.twig.lint', function ($command, $app) {
+                return new \Symfony\Bridge\Twig\Command\LintCommand($app['twig']);
+            });
+        }
 
         // Migration
-        $app->register(new \Dbtlr\MigrationProvider\Provider\MigrationServiceProvider(), array(
-            'db.migrations.path' => __DIR__ . '/../src/Eccube/Resource/doctrine/migration',
-        ));
-
+        if (!$app->offsetExists('db.migrations.path')) {
+            $app->register(new \Dbtlr\MigrationProvider\Provider\MigrationServiceProvider(), [
+                'db.migrations.path' => __DIR__.'/../../../../src/Eccube/Resource/doctrine/migration',
+            ]);
+        }
         $app->boot();
         $app['console'];
 

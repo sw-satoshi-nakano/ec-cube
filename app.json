@@ -1,6 +1,6 @@
 {
-    "name": "EC-CUBE3",
-    "description": "EC-CUBE3 on Heroku",
+    "name": "EC-CUBE4",
+    "description": "EC-CUBE 4 on Heroku",
     "website": "https://github.com/EC-CUBE/ec-cube",
     "repository": "https://github.com/EC-CUBE/ec-cube",
     "keywords": ["php", "ec", "e-commerce", "ec-cube"],
@@ -13,11 +13,35 @@
         }
     ],
     "env": {
+<<<<<<< HEAD
         "ADMIN_USER": {
             "description": "The login id of admin user.",
             "value": "admin"
         },
         "ADMIN_PASS": {
+=======
+        "APP_ENV": {
+            "description": "prod|dev",
+            "value": "prod"
+        },
+        "APP_DEBUG": {
+            "description": "1|0",
+            "value": "0"
+        },
+        "DATABASE_SERVER_VERSION": {
+            "description": "Database server version.",
+            "value": "9.6"
+        },
+        "ECCUBE_AUTH_MAGIC": {
+            "description": "Secret key for login password.",
+            "generator": "secret"
+        },
+        "ECCUBE_ADMIN_USER": {
+            "description": "The login id of admin user.",
+            "value": "admin"
+        },
+        "ECCUBE_ADMIN_PASS": {
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
             "description": "The password of admin user."
         }
     },

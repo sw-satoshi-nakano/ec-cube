@@ -1,128 +1,133 @@
 {#
 This file is part of EC-CUBE
 
-Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
 
-http://www.lockon.co.jp/
+http://www.ec-cube.co.jp/
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
 #}
 {% extends 'default_frame.twig' %}
 
 {% set body_class = 'registration_page' %}
 
-{% block main %}
-    <h1 class="page-heading">新規会員登録確認</h1>
-    <div id="confirm_wrap" class="container-fluid">
-        <div id="confirm_box" class="row">
-            <div id="confirm_box__body" class="col-md-10 col-md-offset-1">
-                <p id="confirm_box__message">下記の内容で送信してもよろしいでしょうか？<br/>よろしければ、一番下の「会員登録をする」ボタンをクリックしてください。</p>
+{% form_theme form 'Form/form_div_layout.twig' %}
 
+{% block main %}
+    <div class="ec-registerRole">
+        <div class="ec-pageHeader">
+            <h1>{{ 'front.entry.confirm_title'|trans }}</h1>
+        </div>
+        <div class="ec-off1Grid">
+            <div class="ec-off1Grid__cell">
                 <form method="post" action="{{ url('entry') }}">
                     {{ form_widget(form._token) }}
-                    <div id="confirm_box__body_inner" class="dl_table">
-                        <dl id="confirm_box__name">
-                            <dt>{{ form_label(form.name) }}</dt>
-                            <dd class="form-group input_name">
-                                {{ form_widget(form.name.name01, { attr : { placeholder: '姓' }}) }}
-                                {{ form_widget(form.name.name02, { attr : { placeholder: '名' }}) }}
-                            </dd>
-                        </dl>
-                        <dl id="confirm_box__kana">
-                            <dt>{{ form_label(form.kana) }}</dt>
-                            <dd class="form-group input_name">
-                                {{ form_widget(form.kana.kana01, { attr : { placeholder: 'セイ' }}) }}
-                                {{ form_widget(form.kana.kana02, { attr : { placeholder: 'メイ' }}) }}
-                            </dd>
-                        </dl>
-                        <dl id="confirm_box__company_name">
-                            <dt>{{ form_label(form.company_name) }}</dt>
-                            <dd class="form-group input_name">
-                                {{ form_widget(form.company_name) }}
-                            </dd>
-                        </dl>
-                        <dl id="confirm_box__address_detail">
-                            <dt>{{ form_label(form.address) }}</dt>
+                    <p>{{ 'front.entry.confirm_message'|trans|nl2br }}</p>
+                    <div class="ec-borderedDefs">
+                        <dl>
+                            <dt>
+                                {{ form_label(form.name, 'common.name', { 'label_attr': { 'class': 'ec-label '}}) }}
+                            </dt>
                             <dd>
-                                <div id="confirm_box__zip" class="form-group form-inline input_zip {% if form.zip.zip01.vars.errors is not empty or form.zip.zip02.vars.errors is not empty %}has-error{% endif %}">{{ form_widget(form.zip) }}</div>
-                                <div id="confirm_box__address" class="{% if form.address.pref.vars.errors is not empty or form.address.addr01.vars.errors is not empty or form.address.addr02.vars.errors is not empty %}has-error{% endif %}">
-                                    {{ form_widget(form.address) }}
-                                </div>
+                                {{ form.name.name01.vars.data }} {# form.vars.value = form.vars.data = Customer #}
+                                {{ form.name.name02.vars.data }}
+                                {{ form_widget(form.name.name01, { type : 'hidden' }) }}
+                                {{ form_widget(form.name.name02, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__tel">
-                            <dt>{{ form_label(form.tel) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.kana, 'common.kana', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
                             <dd>
-                                <div class="form-inline form-group input_tel">
-                                    {{ form_widget(form.tel, {attr : {class : 'short'}}) }}
-                                </div>
+                                {{ form.kana.kana01.vars.data }}
+                                {{ form.kana.kana02.vars.data }}
+                                {{ form_widget(form.kana.kana01, { type : 'hidden' }) }}
+                                {{ form_widget(form.kana.kana02, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__fax">
-                            <dt>{{ form_label(form.fax) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.company_name, 'common.company_name', { 'label_attr': { 'class': 'ec-label'}}) }}
+                            </dt>
                             <dd>
-                                <div class="form-inline form-group input_tel">
-                                    {{ form_widget(form.fax, {attr : {class : 'short'}}) }}
-                                </div>
+                                {{ form.company_name.vars.data }}
+                                {{ form_widget(form.company_name, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__email">
-                            <dt>{{ form_label(form.email) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.address, 'common.address', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
                             <dd>
-                                <div class="form-group">
-                                    {{ form_widget(form.email.first) }}
-                                    {{ form_widget(form.email.second, {freeze_display_text: false}) }}
-                                </div>
+                                {# 郵便番号 #}
+                                <span>{{ 'common.postal_symbol'|trans }}</span>{{ form.postal_code.vars.data }}
+                                {{ form_widget(form.postal_code, { type : 'hidden' }) }}
+                                {# 都道府県・住所 #}
+                                {{ form.address.pref.vars.data }} {{ form.address.addr01.vars.data }} {{ form.address.addr02.vars.data }}
+                                {{ form_widget(form.address.pref, { type : 'hidden' }) }}
+                                {{ form_widget(form.address.addr01, { type : 'hidden' }) }}
+                                {{ form_widget(form.address.addr02, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__password">
-                            <dt>{{ form_label(form.password) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.phone_number, 'common.phone_number', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
+                            <dd>{{ form.phone_number.vars.data }}
+                                {{ form_widget(form.phone_number, { type : 'hidden' }) }}
+                            </dd>
+                        </dl>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.email, 'common.mail_address', {'label_attr': {'class': 'ec-label'}}) }}
+                            </dt>
                             <dd>
-                                <div class="form-group">
-                                    ********
-                                    {{ form_widget(form.password.first, {freeze_display_text: false}) }}
-                                    {{ form_widget(form.password.second, {freeze_display_text: false}) }}
-                                </div>
+                                {{ form.email.vars.data }}
+                                {{ form_widget(form.email.first, { type : 'hidden' }) }}
+                                {{ form_widget(form.email.second, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                    </div>
-                    <div class="dl_table not_required">
-                        <dl id="confirm_box__birth">
-                            <dt>{{ form_label(form.birth) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.password, 'common.password', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
                             <dd>
-                                <div class="form-group form-inline">
-                                    {{ form_widget(form.birth) }}
-                                </div>
+                                ********
+                                {{ form_widget(form.password.first, { type : 'hidden' }) }}
+                                {{ form_widget(form.password.second, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__sex">
-                            <dt>{{ form_label(form.sex) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.birth, 'common.birth_day', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
                             <dd>
-                                <div class="form-group form-inline">
-                                    {{ form_widget(form.sex) }}
-                                </div>
+                                {{ form.birth.vars.data ? form.birth.vars.data|date_day() }}
+                                {{ form_widget(form.birth.year, { type : 'hidden' }) }}
+                                {{ form_widget(form.birth.month, { type : 'hidden' }) }}
+                                {{ form_widget(form.birth.day, { type : 'hidden' }) }}
                             </dd>
                         </dl>
-                        <dl id="confirm_box__job">
-                            <dt>{{ form_label(form.job) }}</dt>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.sex, 'common.gender', {'label_attr': {'class': 'ec-label'}}) }}
+                            </dt>
                             <dd>
-                                <div class="form-group form-inline">
-                                    {{ form_widget(form.job) }}
-                                </div>
+                                {{ form.sex.vars.data }}
+                                {{ form_widget(form.sex, { type: 'hidden'}) }}
                             </dd>
                         </dl>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.job, 'common.job', {'label_attr': {'class': 'ec-label'}}) }}
+                            </dt>
+                            <dd>{{ form.job.vars.data }}
+                                {{ form_widget(form.job, { type: 'hidden'}) }}
+                            </dd>
+                        </dl>
+<<<<<<< HEAD
                     </div>
                     {% for f in form %}
                         {% if f.vars.name matches '[^plg*]' %}
@@ -143,12 +148,41 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
                                 <button type="submit" class="btn btn-info btn-block" name="mode" value="back">戻る
                                 </button>
                             </p>
+=======
+
+                        {{ form_widget(form.user_policy_check, { type: 'hidden'}) }}
+
+                        {# エンティティ拡張の自動出力 #}
+                        {% for f in form if f.vars.eccube_form_options.auto_render %}
+                            {% if f.vars.eccube_form_options.form_theme %}
+                                {% form_theme f f.vars.eccube_form_options.form_theme %}
+                                {{ form_row(f) }}
+                            {% else %}
+                                <dl>
+                                    <dt>
+                                        {{ form_label(f) }}
+                                    </dt>
+                                    <dd>
+                                        <div class="{{ f.vars.eccube_form_options.style_class }}{{ has_errors(f) ? ' error' }}">
+                                            {{ f.vars.data }}
+                                            {{ form_widget(f, { type: 'hidden'}) }}
+                                        </div>
+                                    </dd>
+                                </dl>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="ec-registerRole__actions">
+                        <div class="ec-off4Grid">
+                            <div class="ec-off4Grid__cell">
+                                <button class="ec-blockBtn--action" type="submit" name="mode" value="complete">{{ 'front.entry.do_register'|trans }}</button>
+                                <button class="ec-blockBtn--cancel" type="submit" name="mode" value="back">{{ 'common.back'|trans }}</button>
+                            </div>
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
                         </div>
                     </div>
                 </form>
             </div>
-            <!-- /.col -->
         </div>
-        <!-- /.row -->
     </div>
 {% endblock %}

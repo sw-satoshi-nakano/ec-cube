@@ -1,28 +1,19 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Form\Type;
 
+use Eccube\Common\EccubeConfig;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -30,9 +21,19 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 class KanaType extends AbstractType
 {
-    public function __construct($config = array('kana_len' => 50))
+    /**
+     * @var \Eccube\Common\EccubeConfig
+     */
+    protected $eccubeConfig;
+
+    /**
+     * KanaType constructor.
+     *
+     * @param EccubeConfig $eccubeConfig
+     */
+    public function __construct(EccubeConfig $eccubeConfig)
     {
-        $this->config = $config;
+        $this->eccubeConfig = $eccubeConfig;
     }
 
     /**
@@ -42,7 +43,7 @@ class KanaType extends AbstractType
     {
         // ひらがなをカタカナに変換する
         // 引数はmb_convert_kanaのもの
-        $builder->addEventSubscriber(new \Eccube\EventListener\ConvertKanaListener('CV'));
+        $builder->addEventSubscriber(new \Eccube\Form\EventListener\ConvertKanaListener('CV'));
     }
 
     /**
@@ -50,6 +51,7 @@ class KanaType extends AbstractType
      */
     public function configureOptions(OptionsResolver $resolver)
     {
+<<<<<<< HEAD
         $resolver->setDefaults(array(
             'lastname_options' => array(
                 'attr' => array(
@@ -80,6 +82,38 @@ class KanaType extends AbstractType
                 ),
             ),
         ));
+=======
+        $resolver->setDefaults([
+            'lastname_options' => [
+                'attr' => [
+                    'placeholder' => 'common.last_name_kana',
+                ],
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => '/^[ァ-ヶｦ-ﾟー]+$/u',
+                        'message' => 'form_error.kana_only',
+                    ]),
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_kana_len'],
+                    ]),
+                ],
+            ],
+            'firstname_options' => [
+                'attr' => [
+                    'placeholder' => 'common.first_name_kana',
+                ],
+                'constraints' => [
+                    new Assert\Regex([
+                        'pattern' => '/^[ァ-ヶｦ-ﾟー]+$/u',
+                        'message' => 'form_error.kana_only',
+                    ]),
+                    new Assert\Length([
+                        'max' => $this->eccubeConfig['eccube_kana_len'],
+                    ]),
+                ],
+            ],
+        ]);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
     }
 
     /**
@@ -87,13 +121,13 @@ class KanaType extends AbstractType
      */
     public function getParent()
     {
-        return 'name';
+        return NameType::class;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'kana';
     }

@@ -1,38 +1,28 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Eccube\Tests\Form\Type\Admin;
 
-class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
-{
-    /** @var \Eccube\Application */
-    protected $app;
+use Eccube\Form\Type\Admin\MainEditType;
+use Eccube\Tests\Form\Type\AbstractTypeTestCase;
 
+class MainEditTypeTest extends AbstractTypeTestCase
+{
     /** @var \Symfony\Component\Form\FormInterface */
     protected $form;
 
     /** @var array デフォルト値（正常系）を設定 */
-    protected $formData = array(
+    protected $formData = [
         'name' => 'テストページ',
         'url' => 'test',
         'file_name' => 'foo/bar/baz',
@@ -42,18 +32,17 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
         'keyword' => '',
         'meta_robots' => '',
         'meta_tags' => '',
-        'DeviceType' => '10',
-    );
+    ];
 
     public function setUp()
     {
         parent::setUp();
-
-        $options = array(
+        $options = [
             'csrf_protection' => false,
-        );
-        $this->form = $this->app['form.factory']
-            ->createBuilder('main_edit', null, $options)
+        ];
+
+        $this->form = $this->formFactory
+            ->createBuilder(MainEditType::class, $this->createPage(), $options)
             ->getForm();
     }
 
@@ -72,7 +61,11 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidName_MaxLength()
     {
+<<<<<<< HEAD
         $this->formData['name'] = str_repeat('1', $this->app['config']['sltext_len'] + 1);
+=======
+        $this->formData['name'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -121,15 +114,15 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidUrl_MaxLength()
     {
-        $this->formData['url'] = str_repeat('1', $this->app['config']['stext_len'] + 1);;
+        $this->formData['url'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
 
     public function testInValidUrl_DuplicateUrl()
     {
-        $PageLayout = $this->createPageLayout();
-        $this->formData['url'] = $PageLayout->getUrl();
+        $Page = $this->createPage();
+        $this->formData['url'] = $Page->getUrl();
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -185,16 +178,16 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidFileName_MaxLength()
     {
-        $this->formData['file_name'] = str_repeat('1', $this->app['config']['stext_len'] + 1);;
+        $this->formData['file_name'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
 
-    public function testValidTplData_Blank()
+    public function testInValidTplData_Blank()
     {
         $this->formData['tpl_data'] = '';
         $this->form->submit($this->formData);
-        $this->assertTrue($this->form->isValid());
+        $this->assertFalse($this->form->isValid());
     }
 
     public function testValidAuthor_Blank()
@@ -206,7 +199,11 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidAuthor_MaxLength()
     {
+<<<<<<< HEAD
         $this->formData['author'] = str_repeat('1', $this->app['config']['sltext_len'] + 1);;
+=======
+        $this->formData['author'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -220,7 +217,11 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidDescription_MaxLength()
     {
+<<<<<<< HEAD
         $this->formData['description'] = str_repeat('1', $this->app['config']['sltext_len'] + 1);;
+=======
+        $this->formData['description'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -234,7 +235,11 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidKeyword_MaxLength()
     {
+<<<<<<< HEAD
         $this->formData['keyword'] = str_repeat('1', $this->app['config']['sltext_len'] + 1);;
+=======
+        $this->formData['keyword'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -248,7 +253,11 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidMetaRobots_MaxLength()
     {
+<<<<<<< HEAD
         $this->formData['meta_robots'] = str_repeat('1', $this->app['config']['sltext_len'] + 1);;
+=======
+        $this->formData['meta_robots'] = str_repeat('1', $this->eccubeConfig['eccube_stext_len'] + 1);
+>>>>>>> 2c09ba75d7b7fba1a3b27dbc46b98417f7fffe0d
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }
@@ -269,7 +278,7 @@ class MainEditTestType extends \Eccube\Tests\Form\Type\AbstractTypeTestCase
 
     public function testInValidMetaTags_MaxLength()
     {
-        $this->formData['meta_tags'] = str_repeat('1', $this->app['config']['lltext_len'] + 1);
+        $this->formData['meta_tags'] = str_repeat('1', $this->eccubeConfig['eccube_lltext_len'] + 1);
         $this->form->submit($this->formData);
         $this->assertFalse($this->form->isValid());
     }

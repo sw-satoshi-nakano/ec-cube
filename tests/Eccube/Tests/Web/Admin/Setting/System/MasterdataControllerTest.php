@@ -1,37 +1,39 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Web\Admin\Setting\System;
 
+use Eccube\Entity\Master\OrderStatus;
 use Eccube\Tests\Web\Admin\AbstractAdminWebTestCase;
+use Symfony\Component\HttpFoundation\Session\Session;
 
 /**
  * Class MasterdataControllerTest
- * @package Eccube\Tests\Web\Admin\Setting\System
  */
 class MasterdataControllerTest extends AbstractAdminWebTestCase
 {
+    /**
+     * @var Session
+     */
+    private $session;
+
+    public function setUp()
+    {
+        parent::setUp();
+
+        $this->session = $this->container->get('session');
+    }
+
     protected $entityTest = 'Eccube-Entity-Master-Sex';
 
     /**
@@ -41,7 +43,7 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
     {
         $this->client->request(
             'GET',
-            $this->app->url('admin_setting_system_masterdata')
+            $this->generateUrl('admin_setting_system_masterdata')
         );
         $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
@@ -55,20 +57,20 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata'),
+            [
                 'admin_system_masterdata' => $formData,
-            )
+            ]
         );
-        $this->assertTrue($this->client->getResponse()->isRedirect($this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))));
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
 
         $crawler = $this->client->request(
             'GET',
-            $this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))
+            $this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])
         );
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $crawler->filter('div#result_list__body_inner')->html();
-        $this->expected = $this->app['orm.em']->getRepository($entityName)->find(1)->getName();
+        $this->actual = $crawler->filter('.table.table-sm')->html();
+        $this->expected = $this->entityManager->getRepository($entityName)->find(1)->getName();
         $this->assertContains($this->expected, $this->actual);
     }
 
@@ -79,7 +81,7 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
     {
         $this->client->request(
             'GET',
-            $this->app->url('admin_setting_system_masterdata_edit')
+            $this->generateUrl('admin_setting_system_masterdata_edit')
         );
         $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
@@ -87,7 +89,7 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
     /**
      * Edit name test
      *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
+     * @see https://github.com/EC-CUBE/ec-cube/issues/1884
      */
     public function testEditNameIsBlank()
     {
@@ -99,55 +101,25 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $crawler = $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
         $html = $crawler->html();
-        $this->assertContains('※ 入力されていません。', $html);
+        $this->assertContains('入力されていません。', $html);
 
         // Cannot save
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $this->app['orm.em']->getRepository($entityName)->find($editForm['data'][1]['id'])->getName();
+        $this->actual = $this->entityManager->getRepository($entityName)->find($editForm['data'][1]['id'])->getName();
         $this->verify();
-    }
-
-    /**
-     * New id is null
-     *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
-     */
-    public function testNewIdIsNull()
-    {
-        $formData = $this->createFormData($this->entityTest);
-        $editForm = $this->createFormDataEdit($this->entityTest);
-        $id = count($editForm['data']) + 1;
-        $editForm['data'][$id]['id'] = null;
-        $editForm['data'][$id]['name'] = 'test';
-
-        $crawler = $this->client->request(
-            'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
-                'admin_system_masterdata' => $formData,
-                'admin_system_masterdata_edit' => $editForm,
-            )
-        );
-        $html = $crawler->html();
-        $this->assertContains('※ 入力されていません。', $html);
-
-        // Cannot save
-        $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $actual = $this->app['orm.em']->getRepository($entityName)->find($id);
-        $this->assertTrue(empty($actual));
     }
 
     /**
      * Add new name test
      *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
+     * @see https://github.com/EC-CUBE/ec-cube/issues/1884
      */
     public function testNewNameIsBlank()
     {
@@ -159,53 +131,25 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $crawler = $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
         $html = $crawler->html();
-        $this->assertContains('※ 入力されていません。', $html);
+        $this->assertContains('入力されていません。', $html);
 
         // Cannot save
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $actual = $this->app['orm.em']->getRepository($entityName)->find($id);
+        $actual = $this->entityManager->getRepository($entityName)->find($id);
         $this->assertTrue(empty($actual));
-    }
-
-    /**
-     * Edit id is null
-     *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
-     */
-    public function testEditIdIsNull()
-    {
-        $formData = $this->createFormData($this->entityTest);
-        $editForm = $this->createFormDataEdit($this->entityTest);
-        $id = $editForm['data'][1]['id'];
-        $editForm['data'][1]['id'] = null;
-
-        $crawler = $this->client->request(
-            'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
-                'admin_system_masterdata' => $formData,
-                'admin_system_masterdata_edit' => $editForm,
-            )
-        );
-        $html = $crawler->html();
-        $this->assertContains('※ 入力されていません。', $html);
-
-        $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $actual = $this->app['orm.em']->getRepository($entityName)->find($id);
-        $this->assertFalse(empty($actual));
     }
 
     /**
      * Edit id is zero
      *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
+     * @see https://github.com/EC-CUBE/ec-cube/issues/1884
      */
     public function testEditIdIsZero()
     {
@@ -216,31 +160,31 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
-        $this->assertTrue($this->client->getResponse()->isRedirect($this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))));
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
 
         $this->expected = $editForm['data'][1]['name'];
 
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $this->app['orm.em']->getRepository($entityName)->find($id)->getName();
+        $this->actual = $this->entityManager->getRepository($entityName)->find($id)->getName();
         $this->verify();
 
         // message check
-        $outPut = $this->app['session']->getFlashBag()->get('eccube.admin.success');
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
         $this->actual = array_shift($outPut);
-        $this->expected = 'admin.register.complete';
+        $this->expected = 'admin.common.save_complete';
         $this->verify();
     }
 
     /**
      * Add new name zero test
      *
-     * @link https://github.com/EC-CUBE/ec-cube/issues/1884
+     * @see https://github.com/EC-CUBE/ec-cube/issues/1884
      */
     public function testNewNameIsZero()
     {
@@ -252,25 +196,25 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
-        $this->assertTrue($this->client->getResponse()->isRedirect($this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))));
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
 
         $data = end($editForm['data']);
         $this->expected = $data['name'];
 
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $this->app['orm.em']->getRepository($entityName)->find($data['id'])->getName();
+        $this->actual = $this->entityManager->getRepository($entityName)->find($data['id'])->getName();
         $this->verify();
 
         // message check
-        $outPut = $this->app['session']->getFlashBag()->get('eccube.admin.success');
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
         $this->actual = array_shift($outPut);
-        $this->expected = 'admin.register.complete';
+        $this->expected = 'admin.common.save_complete';
         $this->verify();
     }
 
@@ -284,25 +228,25 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
-        $this->assertTrue($this->client->getResponse()->isRedirect($this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))));
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
 
         $data = end($editForm['data']);
         $this->expected = $data['name'];
 
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $this->app['orm.em']->getRepository($entityName)->find($data['id'])->getName();
+        $this->actual = $this->entityManager->getRepository($entityName)->find($data['id'])->getName();
         $this->verify();
 
         // message check
-        $outPut = $this->app['session']->getFlashBag()->get('eccube.admin.success');
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
         $this->actual = array_shift($outPut);
-        $this->expected = 'admin.register.complete';
+        $this->expected = 'admin.common.save_complete';
         $this->verify();
     }
 
@@ -318,68 +262,191 @@ class MasterdataControllerTest extends AbstractAdminWebTestCase
 
         $this->client->request(
             'POST',
-            $this->app->url('admin_setting_system_masterdata_edit'),
-            array(
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
                 'admin_system_masterdata' => $formData,
                 'admin_system_masterdata_edit' => $editForm,
-            )
+            ]
         );
-        $this->assertTrue($this->client->getResponse()->isRedirect($this->app->url('admin_setting_system_masterdata_view', array('entity' => $formData['masterdata']))));
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
 
         $data = end($editForm['data']);
         $this->expected = $data['name'];
 
         $entityName = str_replace('-', '\\', $formData['masterdata']);
-        $this->actual = $this->app['orm.em']->getRepository($entityName)->find($data['id'])->getName();
+        $this->actual = $this->entityManager->getRepository($entityName)->find($data['id'])->getName();
         $this->verify();
 
         // message check
-        $outPut = $this->app['session']->getFlashBag()->get('eccube.admin.success');
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
         $this->actual = array_shift($outPut);
-        $this->expected = 'admin.register.complete';
+        $this->expected = 'admin.common.save_complete';
+        $this->verify();
+    }
+
+    public function testZeroEdit()
+    {
+        $formData = $this->createFormData($this->entityTest);
+        $editForm = $this->createFormDataEdit($this->entityTest);
+        $id = count($editForm['data']) + 1;
+        $editForm['data'][$id]['id'] = 0;
+        $editForm['data'][$id]['name'] = '0削除テスト';
+
+        $this->client->request(
+            'POST',
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
+                'admin_system_masterdata' => $formData,
+                'admin_system_masterdata_edit' => $editForm,
+            ]
+        );
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
+
+        $data = $editForm['data'][$id];
+        $this->expected = $data['name'];
+
+        $entityName = str_replace('-', '\\', $formData['masterdata']);
+        $this->actual = $this->entityManager->getRepository($entityName)->find(0)->getName();
+        $this->verify();
+
+        // message check
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
+        $this->actual = array_shift($outPut);
+        $this->expected = 'admin.common.save_complete';
+        $this->verify();
+    }
+
+    public function testZeroRemove()
+    {
+        $entityName = str_replace('-', '\\', $this->entityTest);
+
+        $id = $this->entityManager->getRepository($entityName)->findOneBy([], ['sort_no' => 'DESC'])->getSortNo() + 1;
+        $sex = new \Eccube\Entity\Master\Sex();
+        $sex->setName('0削除テスト');
+        $sex->setSortNo($id);
+        $sex->setId(0);
+
+        $this->entityManager->persist($sex);
+        $this->entityManager->flush();
+
+        $formData = $this->createFormData($this->entityTest);
+
+        $masterData = $this->entityManager->getRepository($entityName)->findBy([], ['sort_no' => 'ASC']);
+        $data = [];
+        foreach ($masterData as $value) {
+            if ($value['id'] == 0) {
+                $data[$value['id']]['id'] = null;
+                $data[$value['id']]['name'] = null;
+            } else {
+                $data[$value['id']]['id'] = $value['id'];
+                $data[$value['id']]['name'] = $value['name'];
+            }
+        }
+
+        $editForm = [
+            '_token' => 'dummy',
+            'data' => $data,
+            'masterdata_name' => $this->entityTest,
+        ];
+
+        $this->client->request(
+            'POST',
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
+                'admin_system_masterdata' => $formData,
+                'admin_system_masterdata_edit' => $editForm,
+            ]
+        );
+
+        $this->assertTrue($this->client->getResponse()->isRedirect($this->generateUrl('admin_setting_system_masterdata_view', ['entity' => $formData['masterdata']])));
+
+        $this->assertNull($this->entityManager->getRepository($entityName)->find(0));
+
+        // message check
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
+        $this->actual = array_shift($outPut);
+        $this->expected = 'admin.common.save_complete';
         $this->verify();
     }
 
     /**
+     * 受注ステータスが追加できない不具合の修正
+     *
+     * @see https://github.com/EC-CUBE/ec-cube/issues/4035
+     */
+    public function testNewOrderStatus()
+    {
+        $entityName = 'Eccube-Entity-Master-OrderStatus';
+        $formData = $this->createFormData($entityName);
+        $editForm = $this->createFormDataEdit($entityName);
+        $id = 999;
+        $status = '新ステータス';
+        $editForm['data'][$id]['id'] = $id;
+        $editForm['data'][$id]['name'] = $status;
+
+        $crawler = $this->client->request(
+            'POST',
+            $this->generateUrl('admin_setting_system_masterdata_edit'),
+            [
+                'admin_system_masterdata' => $formData,
+                'admin_system_masterdata_edit' => $editForm,
+            ]
+        );
+        // message check
+        $outPut = $this->session->getFlashBag()->get('eccube.admin.success');
+        $this->actual = array_shift($outPut);
+        $this->expected = 'admin.common.save_complete';
+        $this->verify();
+
+        /** @var OrderStatus $actual */
+        $actual = $this->entityManager->getRepository(OrderStatus::class)->find($id);
+        $this->assertNotNull($actual);
+        $this->assertSame($status, $actual->getName());
+        $this->assertFalse($actual->isDisplayOrderCount());
+    }
+
+    /**
      * @param string $entity
+     *
      * @return array
      */
-    public function createFormData($entity = 'Eccube-Entity-Master-Sex')
+    protected function createFormData($entity = 'Eccube-Entity-Master-Sex')
     {
-        $formData = array(
+        $formData = [
             '_token' => 'dummy',
             'masterdata' => $entity,
-        );
+        ];
 
         return $formData;
     }
 
     /**
      * @param string $entity
+     *
      * @return array
      */
-    public function createFormDataEdit($entity = 'Eccube-Entity-Master-Sex')
+    protected function createFormDataEdit($entity = 'Eccube-Entity-Master-Sex')
     {
         $entityName = str_replace('-', '\\', $entity);
-        $masterData = $this->app['orm.em']->getRepository($entityName)->findBy(array(), array('rank' => 'ASC'));
-        $data = array();
-        $rank = 1;
+        $masterData = $this->entityManager->getRepository($entityName)->findBy([], ['sort_no' => 'ASC']);
+        $data = [];
+        $sortNo = 1;
         $id = 1;
         foreach ($masterData as $value) {
-            $data[$value['rank']]['id'] = $value['id'];
-            $data[$value['rank']]['name'] = $value['name'];
-            $rank = $value['rank'] + 1;
+            $data[$value['sort_no']]['id'] = $value['id'];
+            $data[$value['sort_no']]['name'] = $value['name'];
+            $sortNo = $value['sort_no'] + 1;
             $id = $value['id'];
         }
 
-        $data[$rank]['id'] = $id + 1;
-        $data[$rank]['name'] = 'TestName';
+        $data[$sortNo]['id'] = $id + 1;
+        $data[$sortNo]['name'] = 'TestName';
 
-        $editForm = array(
+        $editForm = [
             '_token' => 'dummy',
             'data' => $data,
             'masterdata_name' => $entity,
-        );
+        ];
 
         return $editForm;
     }

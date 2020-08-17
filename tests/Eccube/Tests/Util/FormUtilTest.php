@@ -1,42 +1,65 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Util;
 
+use Eccube\Form\Type\AddressType;
+use Eccube\Form\Type\Master\PrefType;
+use Eccube\Form\Type\Master\SexType;
 use Eccube\Tests\EccubeTestCase;
 use Eccube\Util\FormUtil;
+use Symfony\Component\Form\Extension\Core\Type\DateType;
+use Symfony\Component\Form\Extension\Core\Type\FormType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
+use Symfony\Component\Form\FormFactoryInterface;
 
 class FormUtilTest extends EccubeTestCase
 {
     protected $form;
 
-    protected $formData = array(
+    /**
+     * @var FormFactoryInterface
+     */
+    protected $formFactory;
+
+    protected $formData = [
         'pref' => '28',
         'name' => 'パーコレータ',
-        'date' => '2017-02-01'
-    );
+        'date' => '2017-02-01',
+    ];
 
     public function setUp()
     {
         parent::setUp();
-
-        $this->form = $this->app['form.factory']
+        $this->formFactory = $this->container->get('form.factory');
+        $this->form = $this->formFactory
             ->createBuilder(
-                'form',
+                FormType::class,
                 null,
-                array(
+                [
                     'csrf_protection' => false,
-                )
+                ]
             )
-            ->add('pref', 'pref')
-            ->add('name', 'text')
-            ->add('date', 'date', array(
+            ->add('pref', PrefType::class)
+            ->add('name', TextType::class)
+            ->add('date', DateType::class, [
                 'label' => '受注日(FROM)',
                 'required' => false,
                 'input' => 'datetime',
                 'widget' => 'single_text',
                 'format' => 'yyyy-MM-dd',
-                'empty_value' => array('year' => '----', 'month' => '--', 'day' => '--'),
-            ))
+                'placeholder' => ['year' => '----', 'month' => '--', 'day' => '--'],
+            ])
             ->getForm();
     }
 
@@ -71,23 +94,23 @@ class FormUtilTest extends EccubeTestCase
      */
     public function testNestedFormType()
     {
-        $formData = array(
-            'address' => array(
+        $formData = [
+            'address' => [
                 'pref' => '27',
                 'addr01' => '北区',
-                'addr02' => '梅田'
-            )
-        );
+                'addr02' => '梅田',
+            ],
+        ];
 
-        $form = $this->app['form.factory']
+        $form = $this->formFactory
             ->createBuilder(
-                'form',
+                FormType::class,
                 null,
-                array(
+                [
                     'csrf_protection' => false,
-                )
+                ]
             )
-            ->add('address', 'address')
+            ->add('address', AddressType::class)
             ->getForm();
 
         $form->submit($formData);
@@ -100,52 +123,50 @@ class FormUtilTest extends EccubeTestCase
      */
     public function testChoiceType()
     {
-        $formData = array(
+        $formData = [
             'sex' => '1',
-        );
+        ];
 
-        $form = $this->app['form.factory']
+        $form = $this->formFactory
             ->createBuilder(
-                'form',
+                FormType::class,
                 null,
-                array(
+                [
                     'csrf_protection' => false,
-                )
+                ]
             )
-            ->add('sex', 'sex')
+            ->add('sex', SexType::class)
             ->getForm();
 
         $form->submit($formData);
         $viewData = FormUtil::getViewData($form);
         $this->assertEquals($formData, $viewData);
     }
-
 
     /**
      * choice type(multiple)のテスト
      */
     public function testChoiceTypeMultiple()
     {
-        $formData = array(
-            'sex' => array('1', '2')
-        );
+        $formData = [
+            'sex' => ['1', '2'],
+        ];
 
-        $form = $this->app['form.factory']
+        $form = $this->formFactory
             ->createBuilder(
-                'form',
+                FormType::class,
                 null,
-                array(
+                [
                     'csrf_protection' => false,
-                )
+                ]
             )
-            ->add('sex', 'sex', array(
+            ->add('sex', SexType::class, [
                 'multiple' => true,
-            ))
+            ])
             ->getForm();
 
         $form->submit($formData);
         $viewData = FormUtil::getViewData($form);
         $this->assertEquals($formData, $viewData);
     }
-
 }

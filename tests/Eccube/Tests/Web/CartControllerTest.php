@@ -1,66 +1,87 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Tests\Web;
 
+use Eccube\Common\Constant;
+use Eccube\Entity\ProductClass;
+
 class CartControllerTest extends AbstractWebTestCase
 {
-
     public function testRoutingCart()
     {
         $this->client->request('GET', '/cart');
         $this->assertTrue($this->client->getResponse()->isSuccessful());
     }
 
-    public function testRoutingCartAdd()
-    {
-        $this->client->request('POST', '/cart/add', array('product_class_id' => 1));
-
-        $this->assertTrue($this->client->getResponse()->isRedirection());
-    }
-
     public function testRoutingCartUp()
     {
-        $this->client->request('PUT', '/cart/up/1');
+        $this->client->request('PUT', '/cart/up/1',
+            [Constant::TOKEN_NAME => 'dummy']
+        );
         $this->assertTrue($this->client->getResponse()->isRedirection());
     }
 
     public function testRoutingCartDown()
     {
-        $this->client->request('PUT', '/cart/down/1');
-        $this->assertTrue($this->client->getResponse()->isRedirection());
-    }
-
-    public function testRoutingCartSetQuantity()
-    {
-        $this->client->request('PUT', '/cart/setQuantity/2/1');
+        $this->client->request('PUT', '/cart/down/1',
+            [Constant::TOKEN_NAME => 'dummy']
+        );
         $this->assertTrue($this->client->getResponse()->isRedirection());
     }
 
     public function testRoutingCartRemove()
     {
-        $this->client->request('PUT', '/cart/remove/1');
+        $this->client->request('PUT', '/cart/remove/1',
+            [Constant::TOKEN_NAME => 'dummy']
+        );
         $this->assertTrue($this->client->getResponse()->isRedirection());
+    }
+
+    /**
+     * https://github.com/EC-CUBE/ec-cube/pull/3499
+     */
+    public function testCartErrors()
+    {
+        $this->cartIn(1);
+        $this->cartIn(2);
+
+        $ProductClass1 = $this->entityManager->find(ProductClass::class, 1);
+        $ProductClass2 = $this->entityManager->find(ProductClass::class, 2);
+
+        // 販売制限数を0に設定
+        $ProductClass1->setSaleLimit(0);
+        $ProductClass2->setSaleLimit(0);
+        $this->entityManager->flush();
+
+        // エラーが2件表示される
+        $crawler = $this->client->request('GET', '/cart');
+        $this->assertTrue($this->client->getResponse()->isSuccessful());
+        $this->assertCount(2, $crawler->filter('div.ec-cartRole__error'));
+    }
+
+    private function cartIn($product_class_id)
+    {
+        $this->client->request(
+            'PUT',
+            $this->generateUrl(
+                'cart_handle_item',
+                [
+                    'operation' => 'up',
+                    'productClassId' => $product_class_id,
+                ]
+            ),
+            [Constant::TOKEN_NAME => '_dummy']
+        );
     }
 }

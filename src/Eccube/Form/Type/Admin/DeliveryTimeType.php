@@ -1,52 +1,67 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type\Admin;
 
 use Doctrine\ORM\EntityRepository;
+use Eccube\Entity\DeliveryTime;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints as Assert;
 
 class DeliveryTimeType extends AbstractType
 {
-    public function __construct($config = array())
-    {
-        $this->config = $config;
-    }
-
     /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         $builder
-            ->add('delivery_time', 'text', array(
+            ->add('delivery_time', TextType::class, [
                 'label' => false,
-            ))
+                'attr' => [
+                    'placeholder' => 'common.select',
+                ],
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+            ])
+            ->add('sort_no', HiddenType::class, [
+                'label' => false,
+                'constraints' => [
+                    new Assert\NotBlank(),
+                ],
+            ])
+            ->add('visible', ChoiceType::class, [
+                'label' => false,
+                'choices' => ['admin.common.show' => true, 'admin.common.hide' => false],
+                'required' => false,
+                'expanded' => false,
+            ])
         ;
+        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+            /** @var DeliveryTime $DeliveryTime */
+            $DeliveryTime = $event->getData();
+            if (null === $DeliveryTime->isVisible()) {
+                $DeliveryTime->setVisible(true);
+            }
+        });
     }
 
     /**
@@ -54,20 +69,20 @@ class DeliveryTimeType extends AbstractType
      */
     public function configureOptions(OptionsResolver $resolver)
     {
-        $resolver->setDefaults(array(
+        $resolver->setDefaults([
             'data_class' => 'Eccube\Entity\DeliveryTime',
-            'query_builder' => function(EntityRepository $er) {
+            'query_builder' => function (EntityRepository $er) {
                 return $er
                     ->createQueryBuilder('dt')
-                    ->orderBy('dt.time_id', 'ASC');
+                    ->orderBy('dt.sort_no', 'ASC');
             },
-        ));
+        ]);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'delivery_time';
     }

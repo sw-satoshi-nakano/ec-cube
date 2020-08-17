@@ -1,36 +1,29 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
+
 namespace Eccube\Tests\Web\Admin\Product;
 
-use Eccube\Common\Constant;
 use Eccube\Entity\ClassCategory;
 use Eccube\Entity\ClassName;
 use Eccube\Entity\Member;
 use Eccube\Entity\Product;
 use Eccube\Entity\ProductClass;
 use Eccube\Entity\ProductStock;
+use Eccube\Repository\DeliveryDurationRepository;
 use Eccube\Tests\Web\Admin\AbstractAdminWebTestCase;
 use Faker\Generator;
+use Eccube\Repository\Master\ProductStatusRepository;
+use Eccube\Repository\Master\SaleTypeRepository;
 
 /**
  * Class ProductCommon
@@ -43,16 +36,35 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
     protected $faker;
 
     /**
+     * @var ProductStatusRepository
+     */
+    protected $productStatusRepository;
+
+    /**
+     * @var SaleTypeRepository
+     */
+    protected $saleTypeRepository;
+
+    /**
+     * @var DeliveryDurationRepository
+     */
+    protected $deliveryDurationRepository;
+
+    /**
      * Set up function
      */
     public function setUp()
     {
         parent::setUp();
         $this->faker = $this->getFaker();
+        $this->productStatusRepository = $this->container->get(ProductStatusRepository::class);
+        $this->saleTypeRepository = $this->container->get(SaleTypeRepository::class);
+        $this->deliveryDurationRepository = $this->container->get(DeliveryDurationRepository::class);
     }
 
     /**
      * @param Member $TestCreator
+     *
      * @return Product
      */
     protected function createTestProduct(Member $TestCreator = null)
@@ -62,38 +74,35 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
         }
 
         $TestProduct = new Product();
-        $Disp = $this->app['orm.em']->getRepository('Eccube\Entity\Master\Disp')->find(1);
+        $ProductStatus = $this->productStatusRepository->find(1);
 
         $TestProduct->setName($this->faker->word)
-            ->setStatus($Disp)
-            ->setNote($this->faker->text(50))
-            ->setDescriptionList($this->faker->text(100))
-            ->setDescriptionDetail($this->faker->text(200))
-            ->setFreeArea($this->faker->text(200))
-            ->setDelFlg(Constant::DISABLED)
+            ->setStatus($ProductStatus)
+            ->setNote($this->faker->realText(50))
+            ->setDescriptionList($this->faker->realText(100))
+            ->setDescriptionDetail($this->faker->realText(200))
+            ->setFreeArea($this->faker->realText(200))
             ->setCreator($TestCreator);
 
-        $this->app['orm.em']->persist($TestProduct);
-        $this->app['orm.em']->flush($TestProduct);
+        $this->entityManager->persist($TestProduct);
+        $this->entityManager->flush();
 
         $ProductClass = new ProductClass();
-        $ProductType = $this->app['orm.em']
-            ->getRepository('\Eccube\Entity\Master\ProductType')
-            ->find(1);
+        $SaleType = $this->saleTypeRepository->find(1);
         $ProductClass->setProduct($TestProduct)
-            ->setProductType($ProductType)
+            ->setSaleType($SaleType)
             ->setCode('test code')
             ->setStock(100)
-            ->setStockUnlimited(Constant::DISABLED)
+            ->setStockUnlimited(false)
             ->setSaleLimit($this->faker->numberBetween(1, 99))
             ->setPrice01($this->faker->randomNumber(4))
             ->setPrice02($this->faker->randomNumber(4))
             ->setDeliveryFee($this->faker->randomNumber(4))
             ->setCreator($TestCreator)
-            ->setDelFlg(Constant::DISABLED);
+            ->setVisible(true);
 
-        $this->app['orm.em']->persist($ProductClass);
-        $this->app['orm.em']->flush($ProductClass);
+        $this->entityManager->persist($ProductClass);
+        $this->entityManager->flush();
 
         $this->createProductStock($TestCreator, $ProductClass);
 
@@ -106,6 +115,7 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
      * Create class name
      *
      * @param Member|null $Creator
+     *
      * @return ClassName
      */
     protected function createClassName(Member $Creator = null)
@@ -115,12 +125,12 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
         }
         $TestClassName = new ClassName();
         $TestClassName->setName($this->faker->word)
-            ->setRank($this->faker->randomNumber(3))
-            ->setDelFlg(Constant::DISABLED)
+            ->setBackendName($this->faker->word)
+            ->setSortNo($this->faker->randomNumber(3))
             ->setCreator($Creator);
 
-        $this->app['orm.em']->persist($TestClassName);
-        $this->app['orm.em']->flush($TestClassName);
+        $this->entityManager->persist($TestClassName);
+        $this->entityManager->flush();
 
         return $TestClassName;
     }
@@ -130,6 +140,7 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
      *
      * @param Member $Creator
      * @param ClassName $TestClassName
+     *
      * @return ClassCategory
      */
     protected function createClassCategory(Member $Creator, ClassName &$TestClassName)
@@ -139,13 +150,13 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
         }
         $TestClassCategory = new ClassCategory();
         $TestClassCategory->setName($this->faker->word)
-            ->setRank($this->faker->randomNumber(3))
+            ->setSortNo($this->faker->randomNumber(3))
             ->setClassName($TestClassName)
-            ->setDelFlg(Constant::DISABLED)
+            ->setVisible(true)
             ->setCreator($Creator);
 
-        $this->app['orm.em']->persist($TestClassCategory);
-        $this->app['orm.em']->flush($TestClassCategory);
+        $this->entityManager->persist($TestClassCategory);
+        $this->entityManager->flush();
 
         $TestClassName->addClassCategory($TestClassCategory);
 
@@ -159,45 +170,48 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
      * @param Product $TestProduct
      * @param ClassCategory $TestClassCategory1
      * @param ClassCategory $TestClassCategory2
+     *
      * @return ProductClass
      */
-    protected function createProductClass(Member $Creator, Product &$TestProduct, ClassCategory $TestClassCategory1, ClassCategory $TestClassCategory2)
-    {
+    protected function createProductClass(
+        Member $Creator,
+        Product &$TestProduct,
+        ClassCategory $TestClassCategory1,
+        ClassCategory $TestClassCategory2
+    ) {
         if (!$Creator) {
             $Creator = $this->createMember();
         }
-        $DeliveryDates = $this->app['eccube.repository.delivery_date']->findAll();
+        $DeliveryDurations = $this->deliveryDurationRepository->findAll();
         $ProductClass = new ProductClass();
-        $ProductType = $this->app['orm.em']
-            ->getRepository('\Eccube\Entity\Master\ProductType')
-            ->find(1);
+        $SaleType = $this->saleTypeRepository->find(1);
 
         $ProductClass->setProduct($TestProduct)
             ->setClassCategory1($TestClassCategory1)
             ->setClassCategory2($TestClassCategory2)
-            ->setProductType($ProductType)
+            ->setSaleType($SaleType)
             ->setCode('test')
             ->setStock(100)
-            ->setStockUnlimited(0)
+            ->setStockUnlimited(false)
             ->setSaleLimit(10)
             ->setPrice01(10000)
             ->setPrice02(5000)
             ->setDeliveryFee(1000)
-            ->setDeliveryDate($DeliveryDates[$this->faker->numberBetween(0, 8)])
+            ->setDeliveryDuration($DeliveryDurations[$this->faker->numberBetween(0, 8)])
             ->setCreator($Creator)
-            ->setDelFlg(Constant::DISABLED);
+            ->setVisible(true);
 
-        $this->app['orm.em']->persist($ProductClass);
-        $this->app['orm.em']->flush($ProductClass);
+        $this->entityManager->persist($ProductClass);
+        $this->entityManager->flush();
 
         $this->createProductStock($Creator, $ProductClass);
 
-        $this->app['orm.em']->persist($ProductClass);
-        $this->app['orm.em']->flush($ProductClass);
+        $this->entityManager->persist($ProductClass);
+        $this->entityManager->flush();
 
         $TestProduct->addProductClass($ProductClass);
-        $this->app['orm.em']->persist($TestProduct);
-        $this->app['orm.em']->flush($TestProduct);
+        $this->entityManager->persist($TestProduct);
+        $this->entityManager->flush();
 
         return $ProductClass;
     }
@@ -207,6 +221,7 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
      *
      * @param Member $Creator
      * @param ProductClass $TestProductClass
+     *
      * @return ProductStock
      */
     protected function createProductStock(Member $Creator, ProductClass &$TestProductClass)
@@ -220,8 +235,8 @@ abstract class AbstractProductCommonTestCase extends AbstractAdminWebTestCase
         $TestProductStock->setStock($TestProductClass->getStock());
         $TestProductStock->setCreator($Creator);
 
-        $this->app['orm.em']->persist($TestProductStock);
-        $this->app['orm.em']->flush($TestProductStock);
+        $this->entityManager->persist($TestProductStock);
+        $this->entityManager->flush();
 
         $TestProductClass->setProductStock($TestProductStock);
 

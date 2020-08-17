@@ -1,46 +1,73 @@
 {#
 This file is part of EC-CUBE
 
-Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
 
-http://www.lockon.co.jp/
+http://www.ec-cube.co.jp/
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
 #}
 {% extends 'default_frame.twig' %}
 
+{% form_theme form 'Form/form_div_layout.twig' %}
+
 {% block main %}
-
-    <div id="contents" class="main_only">
-        <div id="reset_wrap" class="container-fluid inner no-padding">
-            <div id="main">
-                <h1 class="page-heading">パスワード変更(完了ページ)</h1>
-                <div id="reset_box" class="container-fluid">
-                    <div id="reset_box__body" class="row">
-                        <div id="reset_box__message" class="col-md-10 col-md-offset-1">
-                            <h2>新しいパスワードが送信されました。</h2>
-                            <p>新しいパスワード送り致しましたので、メールをご確認ください。</p>
-                            <p>今後ともご愛顧賜りますようよろしくお願い申し上げます。</p>
-                        </div><!-- /.col -->
-                    </div><!-- /.row -->
-
-                </div>
+    <div class="ec-registerRole">
+        <div class="ec-pageHeader">
+            <h1>{{ 'front.forgot.reset_title'|trans }}</h1>
+        </div>
+        <div class="ec-off1Grid">
+            <div class="ec-off1Grid__cell">
+                <form id="form1" method="post" novalidate>
+                    {{ form_widget(form._token) }}
+                    <div class="ec-borderedDefs">
+                        <dl>
+                            <dt>
+                                {{ form_label(form.login_email, 'common.mail_address', { 'label_attr': { 'class': 'ec-label' }}) }}
+                            </dt>
+                            <dd>
+                                <div class="ec-input{{ has_errors(form.login_email) ? ' error' }}">
+                                    {{ form_widget(form.login_email) }}
+                                    {{ form_errors(form.login_email) }}
+                                    {% if error %}
+                                        <p class="ec-errorMessage">{{ error }}</p>
+                                    {% endif %}
+                                </div>
+                            </dd>
+                        </dl>
+                        <dl>
+                            <dt>
+                                {{ form_label(form.password, 'common.password', { 'label_attr': {'class': 'ec-label' }}) }}
+                            </dt>
+                            <dd>
+                                <div class="ec-input{{ has_errors(form.password.first) ? ' error' }}">
+                                    {{ form_widget(form.password.first, {
+                                        'attr': { 'placeholder': 'common.password_sample'|trans({ '%min%': eccube_config.eccube_password_min_len, '%max%': eccube_config.eccube_password_max_len }) },
+                                        'type': 'password'
+                                    }) }}
+                                    {{ form_errors(form.password.first) }}
+                                </div>
+                                <div class="ec-input{{ has_errors(form.password.second) ? ' error' }}">
+                                    {{ form_widget(form.password.second, {
+                                        'attr': { 'placeholder': 'common.repeated_confirm'|trans },
+                                        'type': 'password'
+                                    }) }}
+                                    {{ form_errors(form.password.second) }}
+                                </div>
+                            </dd>
+                        </dl>
+                    </div>
+                    <div class="ec-registerRole__actions">
+                        <div class="ec-off4Grid">
+                            <div class="ec-off4Grid__cell">
+                                <button class="ec-blockBtn--action" type="submit">{{ 'common.registration'|trans }}</button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-
 {% endblock %}
-
 

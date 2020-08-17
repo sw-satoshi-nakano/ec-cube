@@ -1,10 +1,20 @@
 <?php
 
+/*
+ * This file is part of EC-CUBE
+ *
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
+ *
+ * http://www.ec-cube.co.jp/
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Eccube\Tests\Transaction;
 
 use Eccube\Application;
-use Eccube\Tests\Mock\CsrfTokenMock;
-use Silex\WebTestCase;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 /**
  * TransactinoListener のテストケース.
@@ -20,10 +30,17 @@ use Silex\WebTestCase;
  */
 class TransactionListenerTest extends WebTestCase
 {
+    protected function isSqlite()
+    {
+        return $this->app['db']->getDatabasePlatform()->getName() === 'sqlite';
+    }
+
     public function setUp()
     {
+        $this->markTestIncomplete(get_class($this).' は未実装です');
         parent::setUp();
-        if ($this->app['config']['database']['driver'] == 'pdo_sqlite') {
+
+        if ($this->isSqlite()) {
             // Connection が別物になってしまうため
             $this->markTestSkipped('Can not support for sqlite3');
         }
@@ -43,10 +60,10 @@ class TransactionListenerTest extends WebTestCase
 
     public function tearDown()
     {
-        $this->app['orm.em']->close();
-        $this->app['orm.em'] = null;
+        if ($this->app['orm.em']) {
+            $this->app['orm.em']->close();
+        }
         Application::clearInstance();
-        $this->app = null;
     }
 
     /**
@@ -80,7 +97,7 @@ class TransactionListenerTest extends WebTestCase
      */
     public function testTran3()
     {
-        if ($this->app['config']['database']['driver'] == 'pdo_sqlite') {
+        if ($this->isSqlite()) {
             $message = 'sqlite3 is not supported';
             $this->markTestSkipped($message);
         }
@@ -179,7 +196,7 @@ class TransactionListenerTest extends WebTestCase
      */
     public function testTran7()
     {
-        if ($this->app['config']['database']['driver'] == 'pdo_sqlite') {
+        if ($this->isSqlite()) {
             $message = 'sqlite3 is not supported';
             $this->markTestSkipped($message);
         }
@@ -206,7 +223,7 @@ class TransactionListenerTest extends WebTestCase
      */
     public function testTran8()
     {
-        if ($this->app['config']['database']['driver'] == 'pdo_sqlite') {
+        if ($this->isSqlite()) {
             $message = 'sqlite3 is not supported';
             $this->markTestSkipped($message);
         }
@@ -233,7 +250,6 @@ class TransactionListenerTest extends WebTestCase
      * </pre>
      * 初期値が設定される.
      */
-
     public function testTran9()
     {
         $client = $this->createClient();
@@ -258,39 +274,45 @@ class TransactionListenerTest extends WebTestCase
      */
     public function createApplication()
     {
-        $app = Application::getInstance();
+        $app = Application::getInstance([
+            'eccube.autoloader' => $GLOBALS['eccube.autoloader'],
+        ]);
         $app['debug'] = true;
 
         // ログの内容をERRORレベルでしか出力しないように設定を上書き
-        $app['config'] = $app->share($app->extend('config', function ($config, \Silex\Application $app) {
-            $config['log']['log_level'] = 'ERROR';
-            $config['log']['action_level'] = 'ERROR';
-            $config['log']['passthru_level'] = 'ERROR';
+        if (!$app->offsetExists('config')) {
+            $app->extend('config', function ($config, $app) {
+                $config['log']['log_level'] = 'ERROR';
+                $config['log']['action_level'] = 'ERROR';
+                $config['log']['passthru_level'] = 'ERROR';
 
-            $channel = $config['log']['channel'];
-            foreach (array('monolog', 'front', 'admin') as $key) {
-                $channel[$key]['log_level'] = 'ERROR';
-                $channel[$key]['action_level'] = 'ERROR';
-                $channel[$key]['passthru_level'] = 'ERROR';
-            }
-            $config['log']['channel'] = $channel;
+                $channel = $config['log']['channel'];
+                foreach (['monolog', 'front', 'admin'] as $key) {
+                    $channel[$key]['log_level'] = 'ERROR';
+                    $channel[$key]['action_level'] = 'ERROR';
+                    $channel[$key]['passthru_level'] = 'ERROR';
+                }
+                $config['log']['channel'] = $channel;
 
-            return $config;
-        }));
-        $app->initLogger();
+                return $config;
+            });
+            $app->initLogger();
+        }
 
         $app->initialize();
-        $app->initPluginEventDispatcher();
         $app->initializePlugin();
+
         $app['session.test'] = true;
-        // exception_handler は有効に
-        // $app['exception_handler']->disable();
+        //$app->offsetUnset('exception_handler');
 
-        $app['form.csrf_provider'] = $app->share(function () {
-            return new CsrfTokenMock();
-        });
+        $app->offsetUnset('csrf.token_manager');
+        $app->register(new \Eccube\Tests\ServiceProvider\CsrfMockServiceProvider());
 
+        if (!$app->offsetExists('eccube.fixture.generator')) {
+            $app->register(new \Eccube\Tests\ServiceProvider\FixtureServiceProvider());
+        }
         $app->boot();
+        $app->flush();
 
         return $app;
     }
@@ -298,12 +320,10 @@ class TransactionListenerTest extends WebTestCase
 
 class TransactionControllerMock
 {
-
     public function index(Application $app)
     {
         return $app->render('index.twig');
     }
-
 
     public function tran1(Application $app)
     {
@@ -341,7 +361,6 @@ class TransactionControllerMock
             $BaseInfo->setCompanyName('tran3');
             $app['orm.em']->flush($BaseInfo);
             $app['orm.em']->commit();
-
         } catch (\Exception $e) {
             $app['orm.em']->rollback();
         }
@@ -362,7 +381,6 @@ class TransactionControllerMock
 
             // update 1 は rollback
             throw new \Exception();
-
         } catch (\Exception $e) {
             $app['orm.em']->rollback();
         }
@@ -380,7 +398,6 @@ class TransactionControllerMock
             $BaseInfo->setCompanyName('tran5-1');
             $app['orm.em']->flush($BaseInfo);
             $app['orm.em']->commit();
-
         } catch (\Exception $e) {
             $app['orm.em']->rollback();
         }
@@ -393,7 +410,6 @@ class TransactionControllerMock
             $BaseInfo->setCompanyName('tran5-2');
             $app['orm.em']->flush($BaseInfo);
             $app['orm.em']->commit();
-
         } catch (\Exception $e) {
             $app['orm.em']->rollback();
         }
@@ -414,7 +430,6 @@ class TransactionControllerMock
             $BaseInfo->setCompanyName('tran6-1');
             $app['orm.em']->flush($BaseInfo);
             $app['orm.em']->commit();
-
         } catch (\Exception $e) {
             $app['orm.em']->rollback();
         }
@@ -446,7 +461,6 @@ class TransactionControllerMock
 
             // update 1がrollback
             throw new \Exception();
-
         } catch (\Exception $e) {
             // update 1がrollback
             $app['orm.em']->rollback();
@@ -477,7 +491,6 @@ class TransactionControllerMock
 
             // update 1がrollback
             throw new \Exception();
-
         } catch (\Exception $e) {
             // update 1がrollback
             $app['orm.em']->rollback();
@@ -515,7 +528,6 @@ class TransactionControllerMock
 
             // プラグイン内部でエラー
             throw new \Exception();
-
         } catch (\Exception $e) {
             // update 1 / update 2 がrollbackされる.
             $app['orm.em']->rollback();

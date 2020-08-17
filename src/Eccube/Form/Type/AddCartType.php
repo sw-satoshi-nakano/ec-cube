@@ -1,55 +1,66 @@
 <?php
+
 /*
  * This file is part of EC-CUBE
  *
- * Copyright(c) 2000-2015 LOCKON CO.,LTD. All Rights Reserved.
+ * Copyright(c) EC-CUBE CO.,LTD. All Rights Reserved.
  *
- * http://www.lockon.co.jp/
+ * http://www.ec-cube.co.jp/
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
-
 
 namespace Eccube\Form\Type;
 
+use Doctrine\Common\Persistence\ManagerRegistry;
+use Doctrine\ORM\EntityManager;
+use Eccube\Common\EccubeConfig;
+use Eccube\Entity\CartItem;
+use Eccube\Entity\ProductClass;
+use Eccube\Form\DataTransformer\EntityToIdTransformer;
+use Eccube\Repository\ProductClassRepository;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
-use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContext;
 
 class AddCartType extends AbstractType
 {
+    /**
+     * @var EccubeConfig
+     */
+    protected $config;
 
-    public $config;
-    public $security;
-    public $customerFavoriteProductRepository;
-    public $Product = null;
+    /**
+     * @var EntityManager
+     */
+    protected $em;
 
-    public function __construct(
-        $config,
-        \Symfony\Component\Security\Core\SecurityContext $security,
-        \Eccube\Repository\CustomerFavoriteProductRepository $customerFavoriteProductRepository
-    ) {
+    /**
+     * @var \Eccube\Entity\Product
+     */
+    protected $Product = null;
+
+    /**
+     * @var ProductClassRepository
+     */
+    protected $productClassRepository;
+
+    protected $doctrine;
+
+    public function __construct(ManagerRegistry $doctrine, EccubeConfig $config)
+    {
+        $this->doctrine = $doctrine;
         $this->config = $config;
-        $this->security = $security;
-        $this->customerFavoriteProductRepository = $customerFavoriteProductRepository;
     }
 
     /**
@@ -63,65 +74,81 @@ class AddCartType extends AbstractType
         $ProductClasses = $Product->getProductClasses();
 
         $builder
-            ->add('mode', 'hidden', array(
-                'data' => 'add_cart',
-            ))
-            ->add('product_id', 'hidden', array(
+            ->add('product_id', HiddenType::class, [
                 'data' => $Product->getId(),
-                'constraints' => array(
+                'mapped' => false,
+                'constraints' => [
                     new Assert\NotBlank(),
-                    new Assert\Regex(array('pattern' => '/^\d+$/')),
-                ),
-            ))
-            ->add('product_class_id', 'hidden', array(
-                'data' => count($ProductClasses) === 1 ? $ProductClasses[0]->getId() : '',
-                'constraints' => array(
-                    new Assert\Regex(array('pattern' => '/^\d+$/')),
-                ),
-            ));
+                    new Assert\Regex(['pattern' => '/^\d+$/']),
+                ], ])
+            ->add(
+                $builder
+                    ->create('ProductClass', HiddenType::class, [
+                        'data_class' => null,
+                        'data' => $Product->hasProductClass() ? null : $ProductClasses->first(),
+                        'constraints' => [
+                            new Assert\NotBlank(),
+                        ],
+                    ])
+                    ->addModelTransformer(new EntityToIdTransformer($this->doctrine->getManager(), ProductClass::class))
+            );
 
         if ($Product->getStockFind()) {
             $builder
-                ->add('quantity', 'integer', array(
+                ->add('quantity', IntegerType::class, [
                     'data' => 1,
-                    'attr' => array(
+                    'attr' => [
                         'min' => 1,
-                        'maxlength' => $this->config['int_len'],
-                    ),
-                    'constraints' => array(
+                        'maxlength' => $this->config['eccube_int_len'],
+                    ],
+                    'constraints' => [
                         new Assert\NotBlank(),
-                        new Assert\GreaterThanOrEqual(array(
+                        new Assert\GreaterThanOrEqual([
                             'value' => 1,
-                        )),
-                        new Assert\Regex(array('pattern' => '/^\d+$/')),
-                    ),
-                ))
-            ;
+                        ]),
+                        new Assert\Regex(['pattern' => '/^\d+$/']),
+                    ],
+                ]);
             if ($Product && $Product->getProductClasses()) {
                 if (!is_null($Product->getClassName1())) {
-                    $builder->add('classcategory_id1', 'choice', array(
+                    $builder->add('classcategory_id1', ChoiceType::class, [
                         'label' => $Product->getClassName1(),
-                        'choices'   => array('__unselected' => '選択してください') + $Product->getClassCategories1(),
-                    ));
+                        'choices' => ['common.select' => '__unselected'] + $Product->getClassCategories1AsFlip(),
+                        'mapped' => false,
+                    ]);
                 }
                 if (!is_null($Product->getClassName2())) {
-                    $builder->add('classcategory_id2', 'choice', array(
+                    $builder->add('classcategory_id2', ChoiceType::class, [
                         'label' => $Product->getClassName2(),
-                        'choices' => array('__unselected' => '選択してください'),
-                    ));
+                        'choices' => ['common.select' => '__unselected'],
+                        'mapped' => false,
+                    ]);
                 }
             }
 
             $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $event) use ($Product) {
                 $data = $event->getData();
                 $form = $event->getForm();
-                if (!is_null($Product->getClassName2())) {
+                if (isset($data['classcategory_id1']) && !is_null($Product->getClassName2())) {
                     if ($data['classcategory_id1']) {
-                        $form->add('classcategory_id2', 'choice', array(
+                        $form->add('classcategory_id2', ChoiceType::class, [
                             'label' => $Product->getClassName2(),
-                            'choices' => array('__unselected' => '選択してください') + $Product->getClassCategories2($data['classcategory_id1']),
-                        ));
+                            'choices' => ['common.select' => '__unselected'] + $Product->getClassCategories2AsFlip($data['classcategory_id1']),
+                            'mapped' => false,
+                        ]);
                     }
+                }
+            });
+
+            $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) {
+                /** @var CartItem $CartItem */
+                $CartItem = $event->getData();
+                $ProductClass = $CartItem->getProductClass();
+                // FIXME 価格の設定箇所、ここでいいのか
+                if ($ProductClass) {
+                    $CartItem
+                        ->setProductClass($ProductClass)
+                        ->setPrice($ProductClass->getPrice02IncTax());
                 }
             });
         }
@@ -130,15 +157,16 @@ class AddCartType extends AbstractType
     /**
      * {@inheritdoc}
      */
-    public function setDefaultOptions(OptionsResolverInterface $resolver)
+    public function configureOptions(OptionsResolver $resolver)
     {
         $resolver->setRequired('product');
-        $resolver->setDefaults(array(
+        $resolver->setDefaults([
+            'data_class' => CartItem::class,
             'id_add_product_id' => true,
-            'constraints' => array(
-                new Assert\Callback(array($this, 'validate')),
-            ),
-        ));
+            'constraints' => [
+                // FIXME new Assert\Callback(array($this, 'validate')),
+            ],
+        ]);
     }
 
     /*
@@ -151,16 +179,12 @@ class AddCartType extends AbstractType
                 $child->vars['id'] .= $options['product']->getId();
             }
         }
-
-        if ($view->vars['form']->children['mode']->vars['value'] === 'add_cart') {
-            $view->vars['form']->children['mode']->vars['value'] = '';
-        }
     }
 
     /**
      * {@inheritdoc}
      */
-    public function getName()
+    public function getBlockPrefix()
     {
         return 'add_cart';
     }
@@ -168,35 +192,32 @@ class AddCartType extends AbstractType
     /**
      * validate
      *
-     * @param type             $data
+     * @param type $data
      * @param ExecutionContext $context
      */
     public function validate($data, ExecutionContext $context)
     {
-        if ($data['mode'] !== 'add_favorite') {
-            $context->validateValue($data['product_class_id'], array(
+        $context->getValidator()->validate($data['product_class_id'], [
+            new Assert\NotBlank(),
+        ], '[product_class_id]');
+        if ($this->Product->getClassName1()) {
+            $context->validateValue($data['classcategory_id1'], [
                 new Assert\NotBlank(),
-            ), '[product_class_id]');
-            if ($this->Product->getClassName1()) {
-                $context->validateValue($data['classcategory_id1'], array(
-                    new Assert\NotBlank(),
-                    new Assert\NotEqualTo(array(
-                        'value' => '__unselected',
-                        'message' => 'form.type.select.notselect'
-                    )),
-                ), '[classcategory_id1]');
-            }
-            //商品規格2初期状態(未選択)の場合の返却値は「NULL」で「__unselected」ではない
-            if ($this->Product->getClassName2()) {
-                $context->validateValue($data['classcategory_id2'], array(
-                    new Assert\NotBlank(),
-                    new Assert\NotEqualTo(array(
-                        'value' => '__unselected',
-                        'message' => 'form.type.select.notselect'
-                    )),
-                ), '[classcategory_id2]');
-            }
-
+                new Assert\NotEqualTo([
+                    'value' => '__unselected',
+                    'message' => 'form_error.not_selected',
+                ]),
+            ], '[classcategory_id1]');
+        }
+        //商品規格2初期状態(未選択)の場合の返却値は「NULL」で「__unselected」ではない
+        if ($this->Product->getClassName2()) {
+            $context->getValidator()->validate($data['classcategory_id2'], [
+                new Assert\NotBlank(),
+                new Assert\NotEqualTo([
+                    'value' => '__unselected',
+                    'message' => 'form_error.not_selected',
+                ]),
+            ], '[classcategory_id2]');
         }
     }
 }
